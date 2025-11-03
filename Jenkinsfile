@@ -9,13 +9,14 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'main',
-                url: 'https://github.com/your/repo.git'
+                echo "📥 Fetching code from GitHub..."
+                checkout scm
             }
         }
 
         stage('Install Dependencies') {
             steps {
+                echo "📦 Installing npm packages..."
                 sh 'npm install'
                 sh 'npx playwright install'
             }
@@ -23,12 +24,14 @@ pipeline {
 
         stage('Run Playwright Tests') {
             steps {
+                echo "🧪 Running Playwright Tests..."
                 sh 'npx playwright test --reporter=html'
             }
         }
 
         stage('Publish Report') {
             steps {
+                echo "📊 Publishing HTML report..."
                 publishHTML(target: [
                     allowMissing: false,
                     keepAll: true,
@@ -44,16 +47,15 @@ pipeline {
                 expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
             }
             steps {
-                echo " ✅ Tests Success → Deploying to Dev"
-                // Add Deployment Commands here later
+                echo "🚀 Deploying to Dev because all tests passed ✅"
+                // TODO: Add deployment commands later
             }
         }
     }
 
     post {
         failure {
-            echo " ❌ Tests Failed — Deployment Skipped"
+            echo "❌ Tests Failed — Deployment Aborted"
         }
     }
 }
-
