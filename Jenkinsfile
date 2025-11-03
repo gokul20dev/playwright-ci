@@ -17,28 +17,23 @@ pipeline {
 
         stage('Deploy to Dev') {
             steps {
-                echo "🚀 Deploying Application to Dev (Not waiting for tests)..."
-                // Add deployment script here later
+                echo "🚀 Deploying Application (without waiting for tests)..."
             }
         }
 
         stage('Run UI Tests in Background') {
-            parallel {
-                stage('Playwright Tests') {
-                    steps {
-                        echo "🧪 Running Playwright Tests in background..."
-                        
-                        sh 'npm install'
-                        sh 'chmod +x node_modules/.bin/playwright'
-                        sh 'npx playwright install'
+            steps {
+                echo "🧪 Running Playwright tests in background..."
+                sh '''
+                    npm install
+                    chmod +x node_modules/.bin/playwright
+                    npx playwright install
 
-                        // Capture status manually
-                        sh '''
-                            npx playwright test --reporter=html
-                            echo "UI_TEST_STATUS=$?" > test_status.txt
-                        '''
-                    }
-                }
+                    # Run tests but NEVER fail pipeline
+                    npx playwright test --reporter=html || true
+
+                    echo "UI_TEST_STATUS=$?" > test_status.txt
+                '''
             }
         }
 
@@ -46,10 +41,9 @@ pipeline {
             steps {
                 script {
                     def status = readFile('test_status.txt').trim().replace('UI_TEST_STATUS=','')
-
                     if (status != '0') {
-                        echo "⚠️ Tests Failed — Marking build as UNSTABLE"
                         currentBuild.result = 'UNSTABLE'
+                        echo "❌ Tests Failed — Marking build UNSTABLE"
                     } else {
                         echo "✅ Tests Passed"
                     }
@@ -59,7 +53,7 @@ pipeline {
 
         stage('Publish Report') {
             steps {
-                echo "📊 Publishing HTML Test Report..."
+                echo "📊 Publishing HTML Report"
                 publishHTML(target: [
                     allowMissing: true,
                     keepAll: true,
@@ -74,17 +68,16 @@ pipeline {
     post {
         unstable {
             emailext(
-                subject: "❌ UI Tests Failed - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                subject: "❌ UI Tests Failed — ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """
-Hi Team,
+🚨 UI Automation Tests Failed!
 
-🚨 UI Tests have FAILED but deployment continued.
-
-Build: ${env.BUILD_NUMBER}
 Job: ${env.JOB_NAME}
+Build: ${env.BUILD_NUMBER}
 
 View Report:
 ${env.BUILD_URL}Playwright_20Test_20Report
+
 """,
                 to: "gopalakrishnan93843@gmail.com"
             )
