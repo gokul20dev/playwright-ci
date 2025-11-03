@@ -88,3 +88,4 @@ ${env.BUILD_URL}Playwright_20Test_20Report
         echo "✅ Deployment completed ✅"
     }
 }
+}
