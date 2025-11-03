@@ -18,6 +18,7 @@ pipeline {
             steps {
                 echo "📦 Installing npm packages..."
                 sh 'npm install'
+                sh 'chmod +x node_modules/.bin/playwright'
                 sh 'npx playwright install'
             }
         }
@@ -25,6 +26,7 @@ pipeline {
         stage('Run Playwright Tests') {
             steps {
                 echo "🧪 Running Playwright Tests..."
+                sh 'chmod +x node_modules/.bin/playwright'
                 sh 'npx playwright test --reporter=html'
             }
         }
