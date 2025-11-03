@@ -54,7 +54,7 @@ pipeline {
         }
     }
     stage('Check Test Result') {
-    steps {
+        steps {
         script {
             def status = readFile('test_status.txt').trim().replace('UI_TEST_STATUS=','')
             if (status != '0') {
