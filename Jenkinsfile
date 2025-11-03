@@ -18,7 +18,7 @@ pipeline {
         stage('Deploy to Dev') {
             steps {
                 echo "🚀 Deploying Application to Dev (Not waiting for tests)..."
-                // TODO: Add deployment commands here
+                // Add deployment script here later
             }
         }
 
@@ -31,10 +31,27 @@ pipeline {
                         sh 'npm install'
                         sh 'chmod +x node_modules/.bin/playwright'
                         sh 'npx playwright install'
-                        
-                        // Run tests without stopping pipeline if fail
-                       sh 'npx playwright test --reporter=html; echo "UI_TEST_STATUS=$?" > test_status.txt'
 
+                        // Capture status manually
+                        sh '''
+                            npx playwright test --reporter=html
+                            echo "UI_TEST_STATUS=$?" > test_status.txt
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Check Test Result') {
+            steps {
+                script {
+                    def status = readFile('test_status.txt').trim().replace('UI_TEST_STATUS=','')
+
+                    if (status != '0') {
+                        echo "⚠️ Tests Failed — Marking build as UNSTABLE"
+                        currentBuild.result = 'UNSTABLE'
+                    } else {
+                        echo "✅ Tests Passed"
                     }
                 }
             }
@@ -53,23 +70,12 @@ pipeline {
             }
         }
     }
-    stage('Check Test Result') {
-        steps {
-        script {
-            def status = readFile('test_status.txt').trim().replace('UI_TEST_STATUS=','')
-            if (status != '0') {
-                currentBuild.result = 'UNSTABLE'
-            }
-        }
-    }
-}
 
-
-   post {
-    unstable {
-        emailext(
-            subject: "❌ UI Tests Failed - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-            body: """
+    post {
+        unstable {
+            emailext(
+                subject: "❌ UI Tests Failed - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """
 Hi Team,
 
 🚨 UI Tests have FAILED but deployment continued.
@@ -80,12 +86,12 @@ Job: ${env.JOB_NAME}
 View Report:
 ${env.BUILD_URL}Playwright_20Test_20Report
 """,
-            to: "gopalakrishnan93843@gmail.com"
-        )
-    }
+                to: "gopalakrishnan93843@gmail.com"
+            )
+        }
 
-    always {
-        echo "✅ Deployment completed ✅"
+        always {
+            echo "✅ Build Completed ✅"
+        }
     }
-}
 }
