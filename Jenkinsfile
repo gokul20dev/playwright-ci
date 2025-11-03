@@ -70,7 +70,7 @@ Build: ${env.BUILD_NUMBER}
 View Report:
 ${env.BUILD_URL}Playwright_20Test_20Report
 """,
-                to: "youremail@gmail.com"
+                to: "gopalakrishnan93843@gmail.com"
             )
         }
 
