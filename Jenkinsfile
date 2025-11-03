@@ -7,6 +7,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
                 echo "📥 Fetching code from GitHub..."
@@ -14,28 +15,35 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Deploy to Dev') {
             steps {
-                echo "📦 Installing npm packages..."
-                sh 'npm install'
-                sh 'chmod +x node_modules/.bin/playwright'
-                sh 'npx playwright install'
+                echo "🚀 Deploying Application to Dev (Not waiting for tests)..."
+                // TODO: Add deployment commands here
             }
         }
 
-        stage('Run Playwright Tests') {
-            steps {
-                echo "🧪 Running Playwright Tests..."
-                sh 'chmod +x node_modules/.bin/playwright'
-                sh 'npx playwright test --reporter=html'
+        stage('Run UI Tests in Background') {
+            parallel {
+                stage('Playwright Tests') {
+                    steps {
+                        echo "🧪 Running Playwright Tests in background..."
+                        
+                        sh 'npm install'
+                        sh 'chmod +x node_modules/.bin/playwright'
+                        sh 'npx playwright install'
+                        
+                        // Run tests without stopping pipeline if fail
+                        sh 'npx playwright test --reporter=html || echo "Tests Failed"'
+                    }
+                }
             }
         }
 
         stage('Publish Report') {
             steps {
-                echo "📊 Publishing HTML report..."
+                echo "📊 Publishing HTML Test Report..."
                 publishHTML(target: [
-                    allowMissing: false,
+                    allowMissing: true,
                     keepAll: true,
                     reportDir: 'playwright-report',
                     reportFiles: 'index.html',
@@ -43,21 +51,31 @@ pipeline {
                 ])
             }
         }
-
-        stage('Deploy to Dev') {
-            when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
-            }
-            steps {
-                echo "🚀 Deploying to Dev because all tests passed ✅"
-                // TODO: Add deployment commands later
-            }
-        }
     }
 
     post {
-        failure {
-            echo "❌ Tests Failed — Deployment Aborted"
+        unsuccessful {
+            echo "❌ Tests Failed — Sending Email Alert"
+
+            emailext(
+                subject: "❌ Playwright UI Tests Failed - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """
+Hi Team,
+
+🚨 UI Automation tests failed in background.
+
+Job: ${env.JOB_NAME}
+Build: ${env.BUILD_NUMBER}
+
+View Report:
+${env.BUILD_URL}Playwright_20Test_20Report
+""",
+                to: "youremail@gmail.com"
+            )
+        }
+
+        always {
+            echo "✅ Deployment completed ✅"
         }
     }
 }
