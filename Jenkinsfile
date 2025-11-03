@@ -33,7 +33,8 @@ pipeline {
                         sh 'npx playwright install'
                         
                         // Run tests without stopping pipeline if fail
-                        sh 'npx playwright test --reporter=html || echo "Tests Failed"'
+                       sh 'npx playwright test --reporter=html; echo "UI_TEST_STATUS=$?" > test_status.txt'
+
                     }
                 }
             }
@@ -52,30 +53,38 @@ pipeline {
             }
         }
     }
+    stage('Check Test Result') {
+    steps {
+        script {
+            def status = readFile('test_status.txt').trim().replace('UI_TEST_STATUS=','')
+            if (status != '0') {
+                currentBuild.result = 'UNSTABLE'
+            }
+        }
+    }
+}
 
-    post {
-        unsuccessful {
-            echo "❌ Tests Failed — Sending Email Alert"
 
-            emailext(
-                subject: "❌ Playwright UI Tests Failed - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """
+   post {
+    unstable {
+        emailext(
+            subject: "❌ UI Tests Failed - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            body: """
 Hi Team,
 
-🚨 UI Automation tests failed in background.
+🚨 UI Tests have FAILED but deployment continued.
 
-Job: ${env.JOB_NAME}
 Build: ${env.BUILD_NUMBER}
+Job: ${env.JOB_NAME}
 
 View Report:
 ${env.BUILD_URL}Playwright_20Test_20Report
 """,
-                to: "gopalakrishnan93843@gmail.com"
-            )
-        }
+            to: "gopalakrishnan93843@gmail.com"
+        )
+    }
 
-        always {
-            echo "✅ Deployment completed ✅"
-        }
+    always {
+        echo "✅ Deployment completed ✅"
     }
 }
