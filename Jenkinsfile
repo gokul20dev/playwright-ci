@@ -39,17 +39,18 @@ pipeline {
 
                     docker exec pwtest mkdir -p /workspace
 
-                    # ✅ Correct folder path
-                    docker cp tests pwtest:/workspace/
+                    # ✅ Copy full project
+                    docker cp . pwtest:/workspace/
 
                     docker exec pwtest bash -c "
-                        cd /workspace/tests &&
-                        npm ci &&
+                        cd /workspace &&
+                        npm install &&
                         npx playwright install --with-deps &&
                         npx playwright test --reporter=html
                     " || echo "1" > test_status.txt
 
-                    docker cp pwtest:/workspace/tests/playwright-report .
+                    # ✅ Correct report folder location
+                    docker cp pwtest:/workspace/playwright-report . || true
 
                     docker rm -f pwtest || true
 
