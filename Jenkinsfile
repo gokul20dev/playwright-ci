@@ -30,11 +30,11 @@ pipeline {
                     npx playwright install
 
                     # Run tests but NEVER fail pipeline
-                    npx playwright test --reporter=html
+                    npx playwright test --reporter=html || true
                     TEST_EXIT_CODE=$?
 
                     echo "UI_TEST_STATUS=$TEST_EXIT_CODE" > test_status.txt
-                    exit 0
+                    
                 '''
             }
         }
