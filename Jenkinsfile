@@ -5,6 +5,7 @@ pipeline {
         NODE_HOME = tool name: 'nodejs', type: 'nodejs'
         PATH = "${NODE_HOME}/bin:${env.PATH}"
     }
+
     options {
         skipDefaultCheckout()
         buildDiscarder(logRotator(numToKeepStr: '10'))
@@ -21,30 +22,25 @@ pipeline {
 
         stage('Deploy to Dev') {
             steps {
-                echo "🚀 Deploying Application (without waiting for tests)..."
+                echo "🚀 Deploying Application (no wait for tests)"
             }
         }
 
-        stage('Run UI Tests in Background') {
+        stage('Run UI Tests in Docker') {
             steps {
-                echo "🧪 Running Playwright tests in background..."
+                echo "🐳 Running Playwright tests in Docker..."
                 sh '''
-                    npm install
-                    chmod +x node_modules/.bin/playwright
-                    npx playwright install
-
-                    #echo "⏳ Simulating long-running UI tests"
-                    #sleep 300
-                    # Run tests and capture logs
-                    npx playwright test --reporter=html > test_output.log 2>&1 || true
-                    TEST_EXIT_CODE=$?
-
-                    # Detect failures even if Playwright exits as success
-                    if grep -qi "No tests found" test_output.log || grep -qi "ReferenceError" test_output.log; then
-                        TEST_EXIT_CODE=1
+                    docker run --rm \
+                        -v $PWD:/tests \
+                        -w /tests \
+                        mcr.microsoft.com/playwright:v1.44.0-jammy \
+                        /bin/bash -c "npm install && npx playwright install && npx playwright test --reporter=html" \
+                        || echo $? > test_status.txt
+                        
+                    # fallback if exit code not captured
+                    if [ ! -f test_status.txt ]; then
+                        echo "0" > test_status.txt
                     fi
-
-                    echo "UI_TEST_STATUS=$TEST_EXIT_CODE" > test_status.txt
                 '''
             }
         }
@@ -52,12 +48,12 @@ pipeline {
         stage('Check Test Result') {
             steps {
                 script {
-                    def status = readFile('test_status.txt').trim().replace('UI_TEST_STATUS=','')
+                    def status = readFile('test_status.txt').trim()
                     if (status != '0') {
                         currentBuild.result = 'UNSTABLE'
-                        echo "❌ Tests Failed — Marking build UNSTABLE"
+                        echo "❌ UI Tests Failed — Manual rollback needed"
                     } else {
-                        echo "✅ Tests Passed"
+                        echo "✅ UI Tests Passed"
                     }
                 }
             }
@@ -65,13 +61,12 @@ pipeline {
 
         stage('Publish Report') {
             steps {
-                echo "📊 Publishing HTML Report"
                 publishHTML(target: [
                     allowMissing: true,
                     keepAll: true,
                     reportDir: 'playwright-report',
                     reportFiles: 'index.html',
-                    reportName: 'Playwright Test Report'
+                    reportName: 'Playwright Report'
                 ])
             }
         }
@@ -81,38 +76,18 @@ pipeline {
 
         unstable {
             emailext(
-                subject: "❌ UI Tests Failed — Manual Action Required (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: """
-🚨 UI Tests Failed!
-
-🔹 Job: ${env.JOB_NAME}
-🔹 Build: ${env.BUILD_NUMBER}
-
-✅ Deployment already done
-⚠️ Manual rollback required
-
-HTML Report:
-${env.BUILD_URL}Playwright_20Test_20Report
-""",
+                subject: "❌ UI Tests Failed - Manual Action (${env.JOB_NAME} #${env.BUILD_NUMBER})",
+                body: "🚨 Tests Failed! Manual rollback required.\nReport: ${env.BUILD_URL}Playwright_20Report",
                 to: "gopalakrishnan93843@gmail.com"
             )
         }
 
         success {
             emailext(
-                subject: "✅ UI Tests Passed — ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """
-✅ All UI tests passed successfully!
-
-HTML Report:
-${env.BUILD_URL}Playwright_20Test_20Report
-""",
+                subject: "✅ UI Tests Passed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
+                body: "✅ All UI tests passed!\nReport: ${env.BUILD_URL}Playwright_20Report",
                 to: "gopalakrishnan93843@gmail.com"
             )
-        }
-
-        always {
-            echo "✅ Build Completed ✅"
         }
     }
 }
