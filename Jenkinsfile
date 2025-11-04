@@ -29,12 +29,16 @@ pipeline {
                     chmod +x node_modules/.bin/playwright
                     npx playwright install
 
-                    # Run tests but NEVER fail pipeline
-                    npx playwright test --reporter=html || true
+                    # Run tests and capture logs
+                    npx playwright test --reporter=html > test_output.log 2>&1 || true
                     TEST_EXIT_CODE=$?
 
+                    # Detect failures even if Playwright exits as success
+                    if grep -qi "No tests found" test_output.log || grep -qi "ReferenceError" test_output.log; then
+                        TEST_EXIT_CODE=1
+                    fi
+
                     echo "UI_TEST_STATUS=$TEST_EXIT_CODE" > test_status.txt
-                    
                 '''
             }
         }
