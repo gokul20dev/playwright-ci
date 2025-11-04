@@ -1,5 +1,7 @@
 pipeline {
-    agent any
+    agent any{
+         label 'docker-enabled'
+    }
 
     environment {
         NODE_HOME = tool name: 'nodejs', type: 'nodejs'
