@@ -39,16 +39,20 @@ pipeline {
 
                     docker exec pwtest mkdir -p /workspace
 
-                    docker cp . pwtest:/workspace/
+                    # Copy ONLY required files
+                    docker cp package.json pwtest:/workspace/
+                    docker cp playwright.config.* pwtest:/workspace/ || true
+                    docker cp tests pwtest:/workspace/tests
 
+                    # Install and Run Tests
                     docker exec pwtest bash -c "
                         cd /workspace &&
                         npm install &&
                         npx playwright install --with-deps &&
-                        chmod +x ./node_modules/.bin/playwright &&
-                        ./node_modules/.bin/playwright test --reporter=html
-                    " || echo "1" > test_status.txt
+                        npx playwright test --reporter=html || echo '1' > test_status.txt
+                    "
 
+                    # Copy back report
                     docker cp pwtest:/workspace/playwright-report . || true
 
                     docker rm -f pwtest || true
@@ -94,10 +98,7 @@ pipeline {
             emailext(
                 to: "gopalakrishnan93843@gmail.com",
                 subject: "❌ UI Tests Failed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: """
-⚠ Deployment completed — but UI tests failed.
-View Test Report: ${env.BUILD_URL}UI_20Test_20Report/
-"""
+                body: "⚠ Deployment completed — but UI tests failed.\nTest report: ${env.BUILD_URL}UI_20Test_20Report/"
             )
         }
 
@@ -105,10 +106,7 @@ View Test Report: ${env.BUILD_URL}UI_20Test_20Report/
             emailext(
                 to: "gopalakrishnan93843@gmail.com",
                 subject: "✅ UI Tests Passed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: """
-✅ Deployment succeeded & UI tests passed!
-View Test Report: ${env.BUILD_URL}UI_20Test_20Report/
-"""
+                body: "✅ Deployment succeeded & UI tests passed!\nReport: ${env.BUILD_URL}UI_20Test_20Report/"
             )
         }
     }
