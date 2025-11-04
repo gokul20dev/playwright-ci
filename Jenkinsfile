@@ -33,8 +33,8 @@ pipeline {
                     chmod +x node_modules/.bin/playwright
                     npx playwright install
 
-                    echo "⏳ Simulating long-running UI tests"
-                    sleep 300
+                    #echo "⏳ Simulating long-running UI tests"
+                    #sleep 300
                     # Run tests and capture logs
                     npx playwright test --reporter=html > test_output.log 2>&1 || true
                     TEST_EXIT_CODE=$?
