@@ -5,6 +5,10 @@ pipeline {
         NODE_HOME = tool name: 'nodejs', type: 'nodejs'
         PATH = "${NODE_HOME}/bin:${env.PATH}"
     }
+    options {
+        skipDefaultCheckout()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
 
     stages {
 
