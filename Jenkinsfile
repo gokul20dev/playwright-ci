@@ -1,7 +1,5 @@
 pipeline {
-    agent any{
-         label 'docker-enabled'
-    }
+    agent any
 
     environment {
         NODE_HOME = tool name: 'nodejs', type: 'nodejs'
@@ -29,6 +27,9 @@ pipeline {
         }
 
         stage('Run UI Tests in Docker') {
+                agent {
+                label 'docker-enabled'
+            }
             steps {
                 echo "🐳 Running Playwright tests in Docker..."
                 sh '''
