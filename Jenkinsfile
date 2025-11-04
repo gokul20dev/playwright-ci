@@ -39,17 +39,16 @@ pipeline {
 
                     docker exec pwtest mkdir -p /workspace
 
-                    # ✅ Copy full project
                     docker cp . pwtest:/workspace/
 
                     docker exec pwtest bash -c "
                         cd /workspace &&
                         npm install &&
                         npx playwright install --with-deps &&
-                        npx playwright test --reporter=html
+                        chmod +x ./node_modules/.bin/playwright &&
+                        ./node_modules/.bin/playwright test --reporter=html
                     " || echo "1" > test_status.txt
 
-                    # ✅ Correct report folder location
                     docker cp pwtest:/workspace/playwright-report . || true
 
                     docker rm -f pwtest || true
@@ -97,7 +96,7 @@ pipeline {
                 subject: "❌ UI Tests Failed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
                 body: """
 ⚠ Deployment completed — but UI tests failed.
-View Test Report: ${env.BUILD_URL}HTML_20Report/
+View Test Report: ${env.BUILD_URL}UI_20Test_20Report/
 """
             )
         }
@@ -108,7 +107,7 @@ View Test Report: ${env.BUILD_URL}HTML_20Report/
                 subject: "✅ UI Tests Passed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
                 body: """
 ✅ Deployment succeeded & UI tests passed!
-View Test Report: ${env.BUILD_URL}HTML_20Report/
+View Test Report: ${env.BUILD_URL}UI_20Test_20Report/
 """
             )
         }
