@@ -29,27 +29,23 @@ pipeline {
 
         stage('Trigger Test Container') {
             steps {
-                echo "🐳 Starting Separate Test Container..."
-
-                sh '''
-                    # Remove old file if exists
+                echo "🧪 Running Playwright Tests (NodeJS)..."
+                sh """
                     rm -f test_status.txt
 
-                    # Run Playwright tests in separate container
                     docker run --rm \
-                        -v $PWD:/workspace \
+                        -v \${WORKSPACE}:/workspace \
                         -w /workspace \
-                        --name ui-test-container \
-                        mcr.microsoft.com/playwright:v1.44.0-jammy \
-                        bash -c "npm install && npx playwright install && \
-                                npx playwright test --reporter=html" \
-                        || echo $? > test_status.txt
+                        mcr.microsoft.com/playwright:v1.44.0-jammy bash -c "\
+                        npm install && \
+                        npx playwright install && \
+                        npx playwright test --reporter=html \
+                        " || echo \$? > test_status.txt
 
-                    # Write status if not captured
                     if [ ! -f test_status.txt ]; then
                         echo "0" > test_status.txt
                     fi
-                '''
+                """
             }
         }
 
@@ -86,7 +82,7 @@ pipeline {
             emailext(
                 to: "gopalakrishnan93843@gmail.com",
                 subject: "❌ UI Test Failed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: "⚠ Tests failed but deployment completed.\nCheck Report: ${env.BUILD_URL}UI_20Test_20Report"
+                body: "⚠ Tests failed but deployment completed.\nReport: ${env.BUILD_URL}UI_20Test_20Report"
             )
         }
 
