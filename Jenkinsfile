@@ -33,27 +33,33 @@ pipeline {
                 sh """
                     echo "" > test_status.txt
 
+                    # ✅ Ensure container name is always free
+                    docker rm -f pwtest || true
+
                     # Start Playwright container
                     docker run --name pwtest -d mcr.microsoft.com/playwright:v1.44.0-jammy tail -f /dev/null
 
-                    # Create folder inside container
+                    # Create workspace folder inside container
                     docker exec pwtest mkdir -p /workspace
 
-                    # Copy only test folder into correct location
+                    # ✅ Copy only the tests folder
                     docker cp playwright-tests pwtest:/workspace/
 
-                    # Run tests inside correct path
-                    docker exec pwtest bash -c "cd /workspace/playwright-tests && npm ci && npx playwright install --with-deps && npx playwright test --reporter=html" \
-                    || echo "1" > test_status.txt
+                    # ✅ Run tests from correct path
+                    docker exec pwtest bash -c "
+                        cd /workspace/playwright-tests &&
+                        npm ci &&
+                        npx playwright install --with-deps &&
+                        npx playwright test --reporter=html
+                    " || echo "1" > test_status.txt
 
-                    # Copy test report back to Jenkins
+                    # Bring Playwright report back
                     docker cp pwtest:/workspace/playwright-tests/playwright-report .
 
-                    # Cleanup container
-                    docker stop pwtest
-                    docker rm pwtest
+                    # ✅ Cleanup container
+                    docker rm -f pwtest || true
 
-                    # Set success status if no error
+                    # ✅ Test Status logic
                     if [ ! -s test_status.txt ]; then
                         echo "0" > test_status.txt
                     fi
