@@ -30,47 +30,50 @@ pipeline {
             steps {
                 echo "🧪 Running Playwright Tests..."
 
-                sh """
-                    echo "" > test_status.txt
+                // ✅ FIXED TEST EXECUTION STAGE
+                sh '''
+                    set -e
 
+                    echo "🧹 Removing old test container if exists..."
                     docker rm -f pwtest || true
 
+                    echo "🐳 Starting Playwright Test Container..."
                     docker run --name pwtest -d mcr.microsoft.com/playwright:v1.44.0-jammy tail -f /dev/null
 
+                    echo "📂 Copying test files..."
                     docker exec pwtest mkdir -p /workspace
+                    docker cp playwright-tests/package.json pwtest:/workspace/
+                    docker cp playwright-tests/playwright.config.ts pwtest:/workspace/
+                    docker cp playwright-tests/tests pwtest:/workspace/tests
 
-                    # Copy ONLY required files
-                    docker cp package.json pwtest:/workspace/
-                    docker cp playwright.config.* pwtest:/workspace/ || true
-                    docker cp tests pwtest:/workspace/tests
-
-                    # Install and Run Tests
+                    echo "🛠 Installing Dependencies & Running Tests..."
                     docker exec pwtest bash -c "
                         cd /workspace &&
                         npm install &&
                         npx playwright install --with-deps &&
-                        npx playwright test --reporter=html || echo '1' > test_status.txt
+                        npx playwright test --reporter=html
                     "
+                    TEST_EXIT=$?
 
-                    # Copy back report
-                    docker cp pwtest:/workspace/playwright-report . || true
+                    echo "📁 Copying HTML report back to Jenkins..."
+                    rm -rf test-report || true
+                    mkdir -p test-report
+                    docker cp pwtest:/workspace/playwright-report test-report/ || true
 
+                    echo "🧽 Cleaning test container..."
                     docker rm -f pwtest || true
 
-                    if [ ! -s test_status.txt ]; then
-                        echo "0" > test_status.txt
-                    fi
-                """
+                    exit $TEST_EXIT
+                '''
             }
         }
 
         stage('Collect Test Result') {
             steps {
                 script {
-                    def status = readFile('test_status.txt').trim()
-                    if (status != '0') {
-                        currentBuild.result = 'UNSTABLE'
-                        echo "❌ Tests Failed — Deployment done but needs manual rollback"
+                    if (currentBuild.currentResult == "FAILURE") {
+                        echo "❌ Tests Failed — Marking Build UNSTABLE"
+                        currentBuild.result = "UNSTABLE"
                     } else {
                         echo "✅ Tests Passed — Deployment Confirmed"
                     }
@@ -82,12 +85,12 @@ pipeline {
             steps {
                 echo "📊 Publishing Playwright Report..."
                 publishHTML(target: [
-                    allowMissing: true,
+                    allowMissing       : true,
                     alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'playwright-report',
-                    reportFiles: 'index.html',
-                    reportName: 'UI Test Report'
+                    keepAll           : true,
+                    reportDir         : 'test-report/playwright-report',
+                    reportFiles       : 'index.html',
+                    reportName        : 'UI Test Report'
                 ])
             }
         }
@@ -98,7 +101,10 @@ pipeline {
             emailext(
                 to: "gopalakrishnan93843@gmail.com",
                 subject: "❌ UI Tests Failed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: "⚠ Deployment completed — but UI tests failed.\nTest report: ${env.BUILD_URL}UI_20Test_20Report/"
+                body: """
+⚠ Deployment completed — but UI tests failed.  
+Report: ${env.BUILD_URL}HTML_20Report/
+"""
             )
         }
 
@@ -106,7 +112,10 @@ pipeline {
             emailext(
                 to: "gopalakrishnan93843@gmail.com",
                 subject: "✅ UI Tests Passed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: "✅ Deployment succeeded & UI tests passed!\nReport: ${env.BUILD_URL}UI_20Test_20Report/"
+                body: """
+✅ Deployment succeeded & UI tests passed!  
+Report: ${env.BUILD_URL}HTML_20Report/
+"""
             )
         }
     }
