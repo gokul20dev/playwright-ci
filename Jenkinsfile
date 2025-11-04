@@ -27,9 +27,7 @@ pipeline {
         }
 
         stage('Run UI Tests in Docker') {
-                agent {
-                label 'docker-enabled'
-            }
+              
             steps {
                 echo "🐳 Running Playwright tests in Docker..."
                 sh '''
