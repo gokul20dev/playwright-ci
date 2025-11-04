@@ -20,25 +20,32 @@ pipeline {
             }
         }
 
-        stage('Deploy to Dev') {
+        stage('Deploy to Dev (Immediate Deploy)') {
             steps {
-                echo "🚀 Deploying Application (no wait for tests)"
+                echo "🚀 Deploying to Dev environment..."
+                // Add your real deploy script here
             }
         }
 
-        stage('Run UI Tests in Docker') {
-              
+        stage('Trigger Test Container') {
             steps {
-                echo "🐳 Running Playwright tests in Docker..."
+                echo "🐳 Starting Separate Test Container..."
+
                 sh '''
+                    # Remove old file if exists
+                    rm -f test_status.txt
+
+                    # Run Playwright tests in separate container
                     docker run --rm \
-                        -v $PWD:/tests \
-                        -w /tests \
+                        -v $PWD:/workspace \
+                        -w /workspace \
+                        --name ui-test-container \
                         mcr.microsoft.com/playwright:v1.44.0-jammy \
-                        /bin/bash -c "npm install && npx playwright install && npx playwright test --reporter=html" \
+                        bash -c "npm install && npx playwright install && \
+                                npx playwright test --reporter=html" \
                         || echo $? > test_status.txt
-                        
-                    # fallback if exit code not captured
+
+                    # Write status if not captured
                     if [ ! -f test_status.txt ]; then
                         echo "0" > test_status.txt
                     fi
@@ -46,48 +53,48 @@ pipeline {
             }
         }
 
-        stage('Check Test Result') {
+        stage('Collect Test Result') {
             steps {
                 script {
                     def status = readFile('test_status.txt').trim()
                     if (status != '0') {
                         currentBuild.result = 'UNSTABLE'
-                        echo "❌ UI Tests Failed — Manual rollback needed"
+                        echo "❌ Tests Failed — Deployment done but needs manual rollback"
                     } else {
-                        echo "✅ UI Tests Passed"
+                        echo "✅ Tests Passed — Deployment Confirmed"
                     }
                 }
             }
         }
 
-        stage('Publish Report') {
+        stage('Publish Test Report') {
             steps {
+                echo "📊 Publishing Playwright HTML Report..."
                 publishHTML(target: [
                     allowMissing: true,
                     keepAll: true,
                     reportDir: 'playwright-report',
                     reportFiles: 'index.html',
-                    reportName: 'Playwright Report'
+                    reportName: 'UI Test Report'
                 ])
             }
         }
     }
 
     post {
-
         unstable {
             emailext(
-                subject: "❌ UI Tests Failed - Manual Action (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: "🚨 Tests Failed! Manual rollback required.\nReport: ${env.BUILD_URL}Playwright_20Report",
-                to: "gopalakrishnan93843@gmail.com"
+                to: "gopalakrishnan93843@gmail.com",
+                subject: "❌ UI Test Failed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
+                body: "⚠ Tests failed but deployment completed.\nCheck Report: ${env.BUILD_URL}UI_20Test_20Report"
             )
         }
 
         success {
             emailext(
-                subject: "✅ UI Tests Passed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: "✅ All UI tests passed!\nReport: ${env.BUILD_URL}Playwright_20Report",
-                to: "gopalakrishnan93843@gmail.com"
+                to: "gopalakrishnan93843@gmail.com",
+                subject: "✅ UI Test Passed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
+                body: "✅ Deployment and UI tests succeeded!\nReport: ${env.BUILD_URL}UI_20Test_20Report"
             )
         }
     }
