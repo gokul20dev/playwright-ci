@@ -34,7 +34,7 @@ pipeline {
 
                     docker run --rm \
                         -v \${WORKSPACE}:/workspace \
-                        -w /workspace \
+                       -w /workspace/playwright-tests \
                         mcr.microsoft.com/playwright:v1.44.0-jammy bash -c "\
                         npm install && \
                         npx playwright install && \
