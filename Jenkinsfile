@@ -29,18 +29,28 @@ pipeline {
         stage('Trigger Test Container') {
             steps {
                 echo "🧪 Running Playwright Tests..."
+
                 sh """
                     echo "" > test_status.txt
 
-                    docker run --rm \
-                        -v \${WORKSPACE}:/workspace \
-                       -w /workspace/playwright-tests \
-                        mcr.microsoft.com/playwright:v1.44.0-jammy bash -c "\
-                        npm install && \
-                        npx playwright install && \
-                        npx playwright test --reporter=html \
-                        " || echo "1" > test_status.txt
+                    # Start a detached Playwright container
+                    docker run --name pwtest -d mcr.microsoft.com/playwright:v1.44.0-jammy tail -f /dev/null
 
+                    # Copy code into container
+                    docker cp . pwtest:/workspace
+
+                    # Install & run tests inside the correct folder
+                    docker exec pwtest bash -c "cd /workspace/playwright-tests && npm ci && npx playwright install --with-deps && npx playwright test --reporter=html" \
+                    || echo "1" > test_status.txt
+
+                    # Copy back the test report to Jenkins
+                    docker cp pwtest:/workspace/playwright-tests/playwright-report .
+
+                    # Clean up container
+                    docker stop pwtest
+                    docker rm pwtest
+
+                    # If no error → success
                     if [ ! -s test_status.txt ]; then
                         echo "0" > test_status.txt
                     fi
