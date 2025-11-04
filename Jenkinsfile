@@ -33,24 +33,27 @@ pipeline {
                 sh """
                     echo "" > test_status.txt
 
-                    # Start a detached Playwright container
+                    # Start Playwright container
                     docker run --name pwtest -d mcr.microsoft.com/playwright:v1.44.0-jammy tail -f /dev/null
 
-                    # Copy code into container
-                    docker cp . pwtest:/workspace
+                    # Create folder inside container
+                    docker exec pwtest mkdir -p /workspace
 
-                    # Install & run tests inside the correct folder
+                    # Copy only test folder into correct location
+                    docker cp playwright-tests pwtest:/workspace/
+
+                    # Run tests inside correct path
                     docker exec pwtest bash -c "cd /workspace/playwright-tests && npm ci && npx playwright install --with-deps && npx playwright test --reporter=html" \
                     || echo "1" > test_status.txt
 
-                    # Copy back the test report to Jenkins
+                    # Copy test report back to Jenkins
                     docker cp pwtest:/workspace/playwright-tests/playwright-report .
 
-                    # Clean up container
+                    # Cleanup container
                     docker stop pwtest
                     docker rm pwtest
 
-                    # If no error → success
+                    # Set success status if no error
                     if [ ! -s test_status.txt ]; then
                         echo "0" > test_status.txt
                     fi
@@ -93,7 +96,7 @@ pipeline {
                 to: "gopalakrishnan93843@gmail.com",
                 subject: "❌ UI Tests Failed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
                 body: """
-⚠ Deployment completed — but UI tests failed.  
+⚠ Deployment completed — but UI tests failed.
 View Test Report: ${env.BUILD_URL}HTML_20Report/
 """
             )
@@ -104,7 +107,7 @@ View Test Report: ${env.BUILD_URL}HTML_20Report/
                 to: "gopalakrishnan93843@gmail.com",
                 subject: "✅ UI Tests Passed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
                 body: """
-✅ Deployment succeeded & UI tests passed!  
+✅ Deployment succeeded & UI tests passed!
 View Test Report: ${env.BUILD_URL}HTML_20Report/
 """
             )
