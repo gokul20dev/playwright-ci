@@ -66,18 +66,34 @@ pipeline {
     }
 
     post {
+
         unstable {
             emailext(
-                subject: "❌ UI Tests Failed — ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                subject: "❌ UI Tests Failed — Manual Action Required (${env.JOB_NAME} #${env.BUILD_NUMBER})",
                 body: """
-🚨 UI Automation Tests Failed!
+🚨 UI Tests Failed!
 
-Job: ${env.JOB_NAME}
-Build: ${env.BUILD_NUMBER}
+🔹 Job: ${env.JOB_NAME}
+🔹 Build: ${env.BUILD_NUMBER}
 
-View Report:
+✅ Deployment already done
+⚠️ Manual rollback required
+
+HTML Report:
 ${env.BUILD_URL}Playwright_20Test_20Report
+""",
+                to: "gopalakrishnan93843@gmail.com"
+            )
+        }
 
+        success {
+            emailext(
+                subject: "✅ UI Tests Passed — ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """
+✅ All UI tests passed successfully!
+
+HTML Report:
+${env.BUILD_URL}Playwright_20Test_20Report
 """,
                 to: "gopalakrishnan93843@gmail.com"
             )
