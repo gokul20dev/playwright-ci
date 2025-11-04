@@ -23,15 +23,14 @@ pipeline {
         stage('Deploy to Dev (Immediate Deploy)') {
             steps {
                 echo "🚀 Deploying to Dev environment..."
-                // Add your real deploy script here
             }
         }
 
         stage('Trigger Test Container') {
             steps {
-                echo "🧪 Running Playwright Tests (NodeJS)..."
+                echo "🧪 Running Playwright Tests..."
                 sh """
-                    rm -f test_status.txt
+                    echo "" > test_status.txt
 
                     docker run --rm \
                         -v \${WORKSPACE}:/workspace \
@@ -40,9 +39,9 @@ pipeline {
                         npm install && \
                         npx playwright install && \
                         npx playwright test --reporter=html \
-                        " || echo \$? > test_status.txt
+                        " || echo "1" > test_status.txt
 
-                    if [ ! -f test_status.txt ]; then
+                    if [ ! -s test_status.txt ]; then
                         echo "0" > test_status.txt
                     fi
                 """
@@ -65,9 +64,10 @@ pipeline {
 
         stage('Publish Test Report') {
             steps {
-                echo "📊 Publishing Playwright HTML Report..."
+                echo "📊 Publishing Playwright Report..."
                 publishHTML(target: [
                     allowMissing: true,
+                    alwaysLinkToLastBuild: true,
                     keepAll: true,
                     reportDir: 'playwright-report',
                     reportFiles: 'index.html',
@@ -81,16 +81,22 @@ pipeline {
         unstable {
             emailext(
                 to: "gopalakrishnan93843@gmail.com",
-                subject: "❌ UI Test Failed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: "⚠ Tests failed but deployment completed.\nReport: ${env.BUILD_URL}UI_20Test_20Report"
+                subject: "❌ UI Tests Failed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
+                body: """
+⚠ Deployment completed — but UI tests failed.  
+View Test Report: ${env.BUILD_URL}HTML_20Report/
+"""
             )
         }
 
         success {
             emailext(
                 to: "gopalakrishnan93843@gmail.com",
-                subject: "✅ UI Test Passed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: "✅ Deployment and UI tests succeeded!\nReport: ${env.BUILD_URL}UI_20Test_20Report"
+                subject: "✅ UI Tests Passed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
+                body: """
+✅ Deployment succeeded & UI tests passed!  
+View Test Report: ${env.BUILD_URL}HTML_20Report/
+"""
             )
         }
     }
