@@ -21,7 +21,7 @@ pipeline {
 
                     containers.each { name ->
                         sh """
-                            docker run --name ${name} \
+                            docker run -d --name ${name} \
                             -v "${WORKSPACE}":/workspace \
                             -w /workspace \
                             gokul603/playwright-email-tests:latest \
