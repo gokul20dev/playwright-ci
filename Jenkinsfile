@@ -5,7 +5,6 @@ pipeline {
         NODE_HOME = tool name: 'nodejs', type: 'nodejs'
         PATH = "${NODE_HOME}/bin:${env.PATH}"
         RECEIVER_EMAIL = "gopalakrishnan93843@gmail.com"
-        PLAYWRIGHT_CONTAINER_NAME = "playwright_tests"
     }
 
     options {
@@ -16,17 +15,24 @@ pipeline {
 
         stage('Trigger UI Tests') {
             steps {
-                echo "⚡ Triggering Playwright Test Container in background..."
+                echo "⚡ Starting Playwright Test Containers asynchronously..."
                 script {
-                    // Run container in detached mode
-                    sh """
-                        docker run -d --name ${PLAYWRIGHT_CONTAINER_NAME} \
-                        -v "${WORKSPACE}":/workspace \
-                        -w /workspace \
-                        gokul603/playwright-email-tests:latest \
-                        npx playwright test tests/ --reporter=list
-                    """
-                    echo "✅ Playwright tests started in background!"
+                    // List of test containers (you can add more)
+                    def containers = ["playwright_test_1", "playwright_test_2"]
+
+                    containers.each { name ->
+                        sh """
+                            docker run -d --name ${name} \
+                            -v "${WORKSPACE}":/workspace \
+                            -w /workspace \
+                            gokul603/playwright-email-tests:latest \
+                            npx playwright test tests/ --reporter=list
+                        """
+                        echo "✅ Container ${name} started in background!"
+                    }
+
+                    // Save container names for post stage
+                    env.PLAYWRIGHT_CONTAINERS = containers.join(",")
                 }
             }
         }
@@ -34,48 +40,50 @@ pipeline {
         stage('Build & Deploy') {
             steps {
                 echo "🚀 Building & Deploying Application..."
-                // Add your actual deploy commands here
-            }
-        }
-
-        stage('Collect UI Test Results') {
-            steps {
-                echo "📝 Checking Playwright test results..."
-                script {
-                    // Wait for the container to finish
-                    sh "docker wait ${PLAYWRIGHT_CONTAINER_NAME}"
-
-                    // Get the exit code of the test run
-                    def status = sh(script: "docker inspect ${PLAYWRIGHT_CONTAINER_NAME} --format='{{.State.ExitCode}}'", returnStdout: true).trim()
-
-                    // Get the test logs
-                    sh "docker logs ${PLAYWRIGHT_CONTAINER_NAME} > playwright_test_logs.txt"
-
-                    // Remove the container
-                    sh "docker rm ${PLAYWRIGHT_CONTAINER_NAME}"
-
-                    // Store test status
-                    currentBuild.description = status == "0" ? "Tests Passed ✅" : "Tests Failed ❌"
-                }
+                // Your actual deploy commands go here
             }
         }
     }
 
     post {
         always {
-            echo "📧 Sending email with test results..."
-            mail to: "${RECEIVER_EMAIL}",
-                 subject: "Pipeline & Playwright Test Results: ${currentBuild.description}",
-                 body: """Hi,
+            script {
+                echo "📝 Collecting Playwright test results..."
+
+                // Split the container names
+                def containers = env.PLAYWRIGHT_CONTAINERS.split(",")
+
+                containers.each { name ->
+                    // Wait for container to finish
+                    sh "docker wait ${name}"
+
+                    // Get exit code
+                    def status = sh(script: "docker inspect ${name} --format='{{.State.ExitCode}}'", returnStdout: true).trim()
+
+                    // Save logs
+                    sh "docker logs ${name} > ${WORKSPACE}/${name}_logs.txt"
+
+                    // Remove container
+                    sh "docker rm ${name}"
+
+                    echo "📄 Logs saved to ${WORKSPACE}/${name}_logs.txt"
+                    echo "Container ${name} finished with exit code ${status}"
+                }
+
+                // Email notification
+                mail to: "${RECEIVER_EMAIL}",
+                     subject: "Pipeline & Playwright Test Results",
+                     body: """Hi,
 
 Pipeline has completed.
 
-Playwright test status: ${currentBuild.description}
-You can check full logs in the workspace: ${WORKSPACE}/playwright_test_logs.txt
+Playwright test containers: ${containers.join(", ")}
+You can check full logs in the workspace.
 
 Regards,
 CI/CD Pipeline"""
-            echo "✅ Email sent!"
+                echo "✅ Email sent!"
+            }
         }
     }
 }
