@@ -16,21 +16,22 @@ pipeline {
         stage('Build & Deploy') {
             steps {
                 echo "🚀 Building & Deploying Application..."
-                // Put your deploy commands here
+                // Add your actual deploy commands here
             }
         }
 
         stage('Trigger UI Tests') {
             steps {
                 echo "⚡ Running Playwright Test Container..."
-
-                // Run the container
+                
                 script {
+                    // Run the container and specify the tests folder
                     def status = sh(script: """
                         docker run --rm \
                         -v "${WORKSPACE}":/workspace \
                         -w /workspace \
-                        gokul603/playwright-email-tests:latest
+                        gokul603/playwright-email-tests:latest \
+                        npx playwright test tests/
                     """, returnStatus: true)
 
                     // Store status for email
@@ -42,11 +43,20 @@ pipeline {
 
     post {
         always {
+            echo "📧 Sending email with test results..."
+            
             // Send email using Jenkins mail step
             mail to: "${RECEIVER_EMAIL}",
                  subject: "Playwright Test Results: ${currentBuild.description}",
-                 body: "Hi,\n\nYour Playwright tests have finished.\nStatus: ${currentBuild.description}\n\nRegards,\nCI/CD Pipeline"
+                 body: """Hi,
+
+Your Playwright tests have finished.
+Status: ${currentBuild.description}
+
+Regards,
+CI/CD Pipeline"""
             echo "✅ Pipeline finished! Email sent."
         }
     }
 }
+
