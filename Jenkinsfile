@@ -4,11 +4,10 @@ pipeline {
     environment {
         NODE_HOME = tool name: 'nodejs', type: 'nodejs'
         PATH = "${NODE_HOME}/bin:${env.PATH}"
-        RECEIVER_EMAIL = "gopalakrishnan93843@gmail.com" // ✅ Change your mail here
+        RECEIVER_EMAIL = "gopalakrishnan93843@gmail.com"
     }
 
     options {
-        skipDefaultCheckout()
         buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
@@ -23,45 +22,45 @@ pipeline {
 
         stage('Trigger UI Tests in Background') {
             steps {
-                echo "⚡ Triggering Playwright UI Test Container (not waiting for results)..."
+                echo "⚡ Running Playwright Test Container in Background..."
 
                 sh '''
-                    echo "🧹 Cleaning any old test containers..."
+                    echo "🧹 Removing old container..."
                     docker rm -f pwtest || true
 
-                    echo "🚀 Launching Background Playwright Test Container..."
+                    echo "🚀 Launching Playwright Test Container..."
                     docker run -d --name pwtest \
                         -v $(pwd):/workspace \
+                        -w /workspace \
                         -e RECEIVER_EMAIL="${RECEIVER_EMAIL}" \
                         mcr.microsoft.com/playwright:v1.44.0-jammy \
                         bash -c "
-                            cd /workspace &&
-                            echo '📦 Installing dependencies...' &&
-                            npm install &&
+                            echo '📦 Installing required dependencies...' &&
+                            npm ci &&
                             npx playwright install --with-deps &&
-                            echo '▶ Running tests...' &&
-                            if npx playwright test --reporter=dot ; then
-                                echo '✅ Playwright Tests Passed' | mail -s 'TEST STATUS ✅ PASSED' \$RECEIVER_EMAIL
+                            echo '▶ Running test execution...' &&
+                            if npx playwright test ; then
+                                echo '✅ Tests Passed' | mail -s 'TEST STATUS ✅ PASSED' \$RECEIVER_EMAIL
                             else
-                                echo '❌ Playwright Tests Failed' | mail -s 'TEST STATUS ❌ FAILED' \$RECEIVER_EMAIL
+                                echo '❌ Tests Failed' | mail -s 'TEST STATUS ❌ FAILED' \$RECEIVER_EMAIL
                             fi
                         "
-                    echo "✅ Test container started successfully. Jenkins is moving on..."
+
+                    echo "✅ Tests started in background... Pipeline continues!"
                 '''
             }
         }
 
         stage('Build & Deploy') {
             steps {
-                echo "🚀 Build and Deployment will run without waiting for tests!"
-                // 👉 Add your deployment steps here
+                echo "🚀 Build and Deployment triggered..."
             }
         }
     }
 
     post {
         always {
-            echo "✅ Pipeline finished! UI Tests running separately."
+            echo "✅ Pipeline complete! UI Tests running separately."
         }
     }
 }
