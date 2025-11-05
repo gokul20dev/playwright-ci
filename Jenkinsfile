@@ -4,7 +4,7 @@ pipeline {
     environment {
         NODE_HOME = tool name: 'nodejs', type: 'nodejs'
         PATH = "${NODE_HOME}/bin:${env.PATH}"
-        RECEIVER_EMAIL = "yourmail@example.com" // ✅ Change your mail here
+        RECEIVER_EMAIL = "gopalakrishnan93843@gmail.com" // ✅ Change your mail here
     }
 
     options {
