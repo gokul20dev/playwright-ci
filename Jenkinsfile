@@ -21,11 +21,14 @@ pipeline {
 
                     containers.each { name ->
                         sh """
+                            # Stop and remove existing container if it exists
+                            docker rm -f ${name} || true
+
+                            # Run the container
                             docker run -d --name ${name} \
-                            -v "${WORKSPACE}":/workspace \
-                            -w /workspace \
-                            gokul603/playwright-email-tests:latest \
-                            
+                                -v "${WORKSPACE}":/workspace \
+                                -w /workspace \
+                                gokul603/playwright-email-tests:latest
                         """
                         echo "✅ Container ${name} started! It will run tests, email HTML report, and self-destruct."
                     }
