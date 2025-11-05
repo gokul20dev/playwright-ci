@@ -22,7 +22,7 @@ pipeline {
                     docker rm -f pwtest || true
 
                     echo "🚀 Launching Playwright Test Container..."
-                    docker run -d --name pwtest \
+                    docker run  --name pwtest \
                         -v "${WORKSPACE}":/workspace \
                         -w /workspace \
                         -e RECEIVER_EMAIL="${RECEIVER_EMAIL}" \
