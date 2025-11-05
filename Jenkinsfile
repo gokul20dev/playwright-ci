@@ -27,7 +27,7 @@ pipeline {
                 script {
                     // Run the container for Playwright tests
                     def status = sh(script: """
-                        docker run --rm \
+                        docker -d run --rm \
                         -v "${WORKSPACE}":/workspace \
                         -w /workspace \
                         gokul603/playwright-email-tests:latest \
