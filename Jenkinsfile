@@ -27,16 +27,19 @@ pipeline {
                         -w /workspace \
                         -e RECEIVER_EMAIL="${RECEIVER_EMAIL}" \
                         mcr.microsoft.com/playwright:v1.44.0-jammy \
-                        bash -c "
+                        sh -c "
                             echo '📦 Installing required dependencies...' &&
+                            apt-get update && apt-get install -y mailutils && \
                             npm install &&
                             npx playwright install --with-deps &&
                             echo '▶ Running tests...' &&
                             if npx playwright test ; then
-                                echo '✅ Tests Passed' | mail -s 'TEST STATUS ✅ PASSED' \$RECEIVER_EMAIL
+                                echo '✅ Tests Passed' | mail -s 'TEST STATUS ✅ PASSED' \\$RECEIVER_EMAIL
                             else
-                                echo '❌ Tests Failed' | mail -s 'TEST STATUS ❌ FAILED' \$RECEIVER_EMAIL
-                            fi
+                                echo '❌ Tests Failed' | mail -s 'TEST STATUS ❌ FAILED' \\$RECEIVER_EMAIL
+                            fi &&
+                            echo '⏳ Keeping container alive for logs...' &&
+                            tail -f /dev/null
                         "
 
                     echo "✅ Tests started in background... Pipeline continues!"
