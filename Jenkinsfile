@@ -13,43 +13,57 @@ pipeline {
 
     stages {
 
-        stage('Trigger UI Tests in Background') {
+        stage('Checkout Code') {
             steps {
-                echo "⚡ Running Playwright Test Container in Background..."
+                echo "📥 Checking out source code..."
+                checkout scm
+                sh "ls -lah ${WORKSPACE}"
+            }
+        }
+
+        stage('Trigger UI Tests') {
+            steps {
+                echo "⚡ Running Playwright Tests inside Docker..."
 
                 sh """
-                    echo "🧹 Removing old container if exists..."
+                    echo "🧹 Removing old container..."
                     docker rm -f pwtest || true
 
-                    echo "🚀 Launching Playwright Test Container..."
-                    docker run  --name pwtest \
+                    echo "🚀 Running Playwright test container..."
+                    docker run --name pwtest \
                         -v "${WORKSPACE}":/workspace \
                         -w /workspace \
                         -e RECEIVER_EMAIL="${RECEIVER_EMAIL}" \
                         mcr.microsoft.com/playwright:v1.44.0-jammy \
                         bash -c '
                             set -e
+                            export DEBIAN_FRONTEND=noninteractive
 
-                            export DEBIAN_FRONTEND=noninteractive;
-                            echo "postfix postfix/main_mailer_type string Internet Site" | debconf-set-selections;
-                            echo "postfix postfix/mailname string localhost" | debconf-set-selections;
+                            apt-get update >/dev/null
+                            apt-get install -y mailutils postfix >/dev/null 2>&1
 
-                            apt-get update &&
-                            apt-get install -y mailutils &&
+                            service postfix start
 
-                            echo "📦 Installing dependencies..." &&
-                            npm install &&
-                            npx playwright install --with-deps &&
+                            if [ ! -f package.json ]; then
+                                echo "❌ No package.json found! UI Repo Missing!" | mail -s "TEST FAIL ❌ No UI Code" "$RECEIVER_EMAIL"
+                                exit 1
+                            fi
 
-                            echo "▶ Running tests..." &&
+                            echo "📦 Installing NPM dependencies..."
+                            npm install
+
+                            echo "🎭 Installing Playwright dependencies..."
+                            npx playwright install --with-deps
+
+                            echo "▶ Running UI Tests..."
                             if npx playwright test; then
                                 echo "✅ Tests Passed" | mail -s "TEST STATUS ✅ PASSED" "$RECEIVER_EMAIL"
                             else
                                 echo "❌ Tests Failed" | mail -s "TEST STATUS ❌ FAILED" "$RECEIVER_EMAIL"
                             fi
-                        '
 
-                    echo "✅ Tests running in background... Pipeline continues!"
+                            service postfix stop
+                        '
                 """
             }
         }
@@ -64,6 +78,7 @@ pipeline {
     post {
         always {
             echo "✅ Pipeline finished!"
+            echo "📌 Check email for test results"
         }
     }
 }
