@@ -30,7 +30,7 @@ pipeline {
 
                     echo "🚀 Launching Playwright Test Container..."
                     docker run -d --name pwtest \
-                        -v $(pwd):/workspace \
+                        -v "${WORKSPACE}":/workspace \
                         -w /workspace \
                         -e RECEIVER_EMAIL="${RECEIVER_EMAIL}" \
                         mcr.microsoft.com/playwright:v1.44.0-jammy \
