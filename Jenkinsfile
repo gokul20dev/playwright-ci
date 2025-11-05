@@ -28,20 +28,20 @@ pipeline {
                         -e RECEIVER_EMAIL="${RECEIVER_EMAIL}" \
                         mcr.microsoft.com/playwright:v1.44.0-jammy \
                         sh -c '
-                            apt-get update && apt-get install -y mailutils &&
-                            echo \"📦 Installing dependencies...\" &&
+                            export DEBIAN_FRONTEND=noninteractive;
+                            apt-get update &&
+                            apt-get install -y mailutils postfix &&
+
+                            echo "📦 Installing dependencies..." &&
                             npm install &&
                             npx playwright install --with-deps &&
 
-                            echo \"▶ Running tests...\" &&
+                            echo "▶ Running tests..." &&
                             if npx playwright test; then
-                                echo \"✅ Tests Passed\" | mail -s \"TEST STATUS ✅ PASSED\" \"$RECEIVER_EMAIL\"
+                                echo "✅ Tests Passed" | mail -s "TEST STATUS ✅ PASSED" "$RECEIVER_EMAIL"
                             else
-                                echo \"❌ Tests Failed\" | mail -s \"TEST STATUS ❌ FAILED\" \"$RECEIVER_EMAIL\"
+                                echo "❌ Tests Failed" | mail -s "TEST STATUS ❌ FAILED" "$RECEIVER_EMAIL"
                             fi
-
-                            # Keep container for logs only if needed
-                            # tail -f /dev/null
                         '
 
                     echo "✅ Tests running in background... Pipeline continues!"
