@@ -15,50 +15,49 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
-                echo "📥 Fetching code from GitHub..."
+                echo "📥 Pulling code from GitHub..."
                 checkout scm
             }
         }
 
-        stage('Deploy to Dev (Immediate Deploy)') {
+        stage('Trigger UI Tests in Docker') {
             steps {
-                echo "🚀 Deploying to Dev environment..."
-            }
-        }
+                echo "🧪 Running Playwright tests in container..."
 
-        stage('Trigger Test Container') {
-            steps {
-                echo "🧪 Running Playwright Tests..."
-
-                // ✅ FIXED TEST EXECUTION STAGE
                 sh '''
                     set -e
-
-                    echo "🧹 Removing old test container if exists..."
+                    
+                    echo "🧹 Cleaning old containers..."
                     docker rm -f pwtest || true
 
-                    echo "🐳 Starting Playwright Test Container..."
+                    echo "🐳 Starting Playwright test container..."
                     docker run --name pwtest -d mcr.microsoft.com/playwright:v1.44.0-jammy tail -f /dev/null
 
-                    echo "📂 Copying test files..."
+                    echo "📂 Copying project files to container..."
                     docker exec pwtest mkdir -p /workspace
-                    docker cp playwright-tests/package.json pwtest:/workspace/
-                    docker cp playwright-tests/playwright.config.ts pwtest:/workspace/
-                    docker cp playwright-tests/tests pwtest:/workspace/tests
+                    docker cp package.json pwtest:/workspace/
+                    docker cp package-lock.json pwtest:/workspace/
+                    docker cp playwright.config.ts pwtest:/workspace/
+                    docker cp tests pwtest:/workspace/tests
 
-                    echo "🛠 Installing Dependencies & Running Tests..."
+                    echo "📦 Installing dependencies..."
                     docker exec pwtest bash -c "
                         cd /workspace &&
                         npm install &&
-                        npx playwright install --with-deps &&
+                        npx playwright install --with-deps
+                    "
+
+                    echo "▶ Running tests and generating HTML reports..."
+                    docker exec pwtest bash -c "
+                        cd /workspace &&
                         npx playwright test --reporter=html
                     "
                     TEST_EXIT=$?
 
-                    echo "📁 Copying HTML report back to Jenkins..."
+                    echo "📤 Copy report to Jenkins workspace..."
                     rm -rf test-report || true
                     mkdir -p test-report
-                    docker cp pwtest:/workspace/playwright-report test-report/ || true
+                    docker cp pwtest:/workspace/playwright-report test-report/
 
                     echo "🧽 Cleaning test container..."
                     docker rm -f pwtest || true
@@ -68,55 +67,27 @@ pipeline {
             }
         }
 
-        stage('Collect Test Result') {
+        stage('Publish HTML Report') {
             steps {
-                script {
-                    if (currentBuild.currentResult == "FAILURE") {
-                        echo "❌ Tests Failed — Marking Build UNSTABLE"
-                        currentBuild.result = "UNSTABLE"
-                    } else {
-                        echo "✅ Tests Passed — Deployment Confirmed"
-                    }
-                }
-            }
-        }
-
-        stage('Publish Test Report') {
-            steps {
-                echo "📊 Publishing Playwright Report..."
+                echo "📊 Publishing Playwright HTML Report..."
                 publishHTML(target: [
-                    allowMissing       : true,
+                    reportDir: 'test-report/playwright-report',
+                    reportFiles: 'index.html',
+                    reportName: 'UI Automation Report',
+                    keepAll: true,
                     alwaysLinkToLastBuild: true,
-                    keepAll           : true,
-                    reportDir         : 'test-report/playwright-report',
-                    reportFiles       : 'index.html',
-                    reportName        : 'UI Test Report'
+                    allowMissing: true
                 ])
             }
         }
     }
 
     post {
-        unstable {
-            emailext(
-                to: "gopalakrishnan93843@gmail.com",
-                subject: "❌ UI Tests Failed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: """
-⚠ Deployment completed — but UI tests failed.  
-Report: ${env.BUILD_URL}HTML_20Report/
-"""
-            )
+        always {
+            echo "✅ Pipeline completed (check report above 👆)"
         }
-
-        success {
-            emailext(
-                to: "gopalakrishnan93843@gmail.com",
-                subject: "✅ UI Tests Passed (${env.JOB_NAME} #${env.BUILD_NUMBER})",
-                body: """
-✅ Deployment succeeded & UI tests passed!  
-Report: ${env.BUILD_URL}HTML_20Report/
-"""
-            )
+        failure {
+            echo "❌ UI tests failed"
         }
     }
 }
