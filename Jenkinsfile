@@ -13,13 +13,6 @@ pipeline {
 
     stages {
 
-        stage('Checkout Code') {
-            steps {
-                echo "📥 Pulling code from GitHub..."
-                checkout scm
-            }
-        }
-
         stage('Trigger UI Tests in Background') {
             steps {
                 echo "⚡ Running Playwright Test Container in Background..."
@@ -36,9 +29,9 @@ pipeline {
                         mcr.microsoft.com/playwright:v1.44.0-jammy \
                         bash -c "
                             echo '📦 Installing required dependencies...' &&
-                            npm ci &&
+                            npm install &&
                             npx playwright install --with-deps &&
-                            echo '▶ Running test execution...' &&
+                            echo '▶ Running tests...' &&
                             if npx playwright test ; then
                                 echo '✅ Tests Passed' | mail -s 'TEST STATUS ✅ PASSED' \$RECEIVER_EMAIL
                             else
@@ -53,14 +46,14 @@ pipeline {
 
         stage('Build & Deploy') {
             steps {
-                echo "🚀 Build and Deployment triggered..."
+                echo "🚀 Build & Deploy triggered..."
             }
         }
     }
 
     post {
         always {
-            echo "✅ Pipeline complete! UI Tests running separately."
+            echo "✅ Pipeline finished successfully!"
         }
     }
 }
