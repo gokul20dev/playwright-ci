@@ -23,9 +23,9 @@ pipeline {
         stage('Trigger UI Tests') {
             steps {
                 echo "⚡ Running Playwright Test Container..."
-                
+
                 script {
-                    // Run the container and specify the tests folder
+                    // Run the container for Playwright tests
                     def status = sh(script: """
                         docker run --rm \
                         -v "${WORKSPACE}":/workspace \
@@ -34,7 +34,7 @@ pipeline {
                         npx playwright test tests/
                     """, returnStatus: true)
 
-                    // Store status for email
+                    // Store test status
                     currentBuild.description = status == 0 ? "Tests Passed ✅" : "Tests Failed ❌"
                 }
             }
@@ -44,8 +44,8 @@ pipeline {
     post {
         always {
             echo "📧 Sending email with test results..."
-            
-            // Send email using Jenkins mail step
+
+            // Use Jenkins SMTP (configured in Manage Jenkins → Configure System)
             mail to: "${RECEIVER_EMAIL}",
                  subject: "Playwright Test Results: ${currentBuild.description}",
                  body: """Hi,
@@ -55,8 +55,8 @@ Status: ${currentBuild.description}
 
 Regards,
 CI/CD Pipeline"""
+
             echo "✅ Pipeline finished! Email sent."
         }
     }
 }
-
