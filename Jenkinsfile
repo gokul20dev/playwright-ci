@@ -14,23 +14,23 @@ pipeline {
 
         stage('Trigger UI Tests') {
             steps {
-                echo "⚡ Starting Playwright Test Containers asynchronously..."
+                echo "⚡ Starting Playwright Test Containers..."
                 script {
                     // List of test containers
                     def containers = ["playwright_test_1", "playwright_test_2"]
 
                     containers.each { name ->
                         sh """
-                            # Stop and remove existing container if it exists
+                            # Remove old container if exists
                             docker rm -f ${name} || true
 
-                            # Run the container
-                            docker run -d --name ${name} \
+                            # Run container and remove automatically after tests
+                            docker run --rm --name ${name} \
                                 -v "${WORKSPACE}":/workspace \
                                 -w /workspace \
                                 gokul603/playwright-email-tests:latest
                         """
-                        echo "✅ Container ${name} started! It will run tests, email HTML report, and self-destruct."
+                        echo "✅ Container ${name} ran successfully!"
                     }
                 }
             }
