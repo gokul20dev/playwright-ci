@@ -13,72 +13,40 @@ pipeline {
 
     stages {
 
-        stage('Checkout Code') {
+        stage('Build & Deploy') {
             steps {
-                echo "📥 Checking out source code..."
-                checkout scm
-                sh "ls -lah ${WORKSPACE}"
+                echo "🚀 Building & Deploying Application..."
+                // Put your deploy commands here
             }
         }
 
         stage('Trigger UI Tests') {
             steps {
-                echo "⚡ Running Playwright Tests inside Docker..."
+                echo "⚡ Running Playwright Test Container..."
 
-                sh """
-                    echo "🧹 Removing old container..."
-                    docker rm -f pwtest || true
-
-                    echo "🚀 Running Playwright test container..."
-                    docker run --name pwtest \
+                // Run the container
+                script {
+                    def status = sh(script: """
+                        docker run --rm \
                         -v "${WORKSPACE}":/workspace \
                         -w /workspace \
-                        -e RECEIVER_EMAIL="${RECEIVER_EMAIL}" \
-                        mcr.microsoft.com/playwright:v1.44.0-jammy \
-                        bash -c '
-                            set -e
-                            export DEBIAN_FRONTEND=noninteractive
+                        gokul603/playwright-email-tests:latest
+                    """, returnStatus: true)
 
-                            apt-get update >/dev/null
-                            apt-get install -y mailutils postfix >/dev/null 2>&1
-
-                            service postfix start
-
-                            if [ ! -f package.json ]; then
-                                echo "❌ No package.json found! UI Repo Missing!" | mail -s "TEST FAIL ❌ No UI Code" "$RECEIVER_EMAIL"
-                                exit 1
-                            fi
-
-                            echo "📦 Installing NPM dependencies..."
-                            npm install
-
-                            echo "🎭 Installing Playwright dependencies..."
-                            npx playwright install --with-deps
-
-                            echo "▶ Running UI Tests..."
-                            if npx playwright test; then
-                                echo "✅ Tests Passed" | mail -s "TEST STATUS ✅ PASSED" "$RECEIVER_EMAIL"
-                            else
-                                echo "❌ Tests Failed" | mail -s "TEST STATUS ❌ FAILED" "$RECEIVER_EMAIL"
-                            fi
-
-                            service postfix stop
-                        '
-                """
-            }
-        }
-
-        stage('Build & Deploy') {
-            steps {
-                echo "🚀 Building & Deploying Application..."
+                    // Store status for email
+                    currentBuild.description = status == 0 ? "Tests Passed ✅" : "Tests Failed ❌"
+                }
             }
         }
     }
 
     post {
         always {
-            echo "✅ Pipeline finished!"
-            echo "📌 Check email for test results"
+            // Send email using Jenkins mail step
+            mail to: "${RECEIVER_EMAIL}",
+                 subject: "Playwright Test Results: ${currentBuild.description}",
+                 body: "Hi,\n\nYour Playwright tests have finished.\nStatus: ${currentBuild.description}\n\nRegards,\nCI/CD Pipeline"
+            echo "✅ Pipeline finished! Email sent."
         }
     }
 }
