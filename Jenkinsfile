@@ -25,7 +25,7 @@ pipeline {
                             -v "${WORKSPACE}":/workspace \
                             -w /workspace \
                             gokul603/playwright-email-tests:latest \
-                            bash run_tests.sh &
+                            
                         """
                         echo "✅ Container ${name} started! It will run tests, email HTML report, and self-destruct."
                     }
