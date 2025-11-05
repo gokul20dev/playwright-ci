@@ -26,7 +26,7 @@ pipeline {
                             -v "${WORKSPACE}":/workspace \
                             -w /workspace \
                             gokul603/playwright-email-tests:latest \
-                            npx playwright test .tests/ --reporter=list
+                            npx playwright test ./tests --reporter=list
                         """
                         echo "✅ Container ${name} started in background!"
                     }
