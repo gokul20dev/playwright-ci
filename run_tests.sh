@@ -18,3 +18,4 @@ echo -e "Hi,\n\nPlaywright tests completed.\nExit code: $STATUS\nPlease find the
 
 # Exit with test status
 exit $STATUS
+ 
