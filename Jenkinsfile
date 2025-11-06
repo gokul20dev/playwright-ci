@@ -20,9 +20,7 @@ pipeline {
                         sh """
                             docker rm -f ${name} || true
                             docker run -d --name ${name} \
-                              -v /var/jenkins_home/jobs/playwright-automation-pipeline/workspace:/workspace \
-                              -w /workspace \
-                              gokul603/playwright-email-tests:latest bash /workspace/run_tests.sh
+                              gokul603/playwright-email-tests:latest
                         """
                         echo "✅ ${name} started ✅"
                     }
