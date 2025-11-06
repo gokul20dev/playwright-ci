@@ -8,21 +8,16 @@ pipeline {
     }
 
     stages {
-
         stage('Trigger UI Tests') {
             steps {
-                echo "⚡ Triggering Playwright Tests in background.."
-
                 script {
-                    def containers = ["playwright_test_1", "playwright_test_2"]
+                    def containers = ["pw_test_1", "pw_test_2"]
 
-                    withCredentials([
-                        usernamePassword(
-                            credentialsId: 'gmail-smtp',
-                            usernameVariable: 'GMAIL_USER',
-                            passwordVariable: 'GMAIL_PASS'
-                        )
-                    ]) {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'gmail-smtp',
+                        usernameVariable: 'GMAIL_USER',
+                        passwordVariable: 'GMAIL_PASS'
+                    )]) {
 
                         containers.each { name ->
                             sh """
@@ -30,9 +25,9 @@ pipeline {
                                 docker run -d --name ${name} \
                                   -e GMAIL_USER="${GMAIL_USER}" \
                                   -e GMAIL_PASS="${GMAIL_PASS}" \
+                                  -v ${env.WORKSPACE}:/workspace \
                                   gokul603/playwright-email-tests:latest
                             """
-                            echo "✅ ${name} started ✅"
                         }
                     }
                 }
@@ -41,14 +36,14 @@ pipeline {
 
         stage('Build & Deploy') {
             steps {
-                echo "🚀 Continue Build & Deploy while tests run..."
+                echo "🚀 Deploying App while tests run..."
             }
         }
     }
 
     post {
         always {
-            echo "📧 UI Test Emails should be sent by each container ✅"
+            echo "📬 Test report email should be received ✅"
         }
     }
 }
