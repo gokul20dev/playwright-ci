@@ -1,10 +1,24 @@
 import nodemailer from "nodemailer";
 import fs from "fs";
 
-// Gmail credentials from environment
+// Get Gmail credentials from environment variables
 const user = process.env.GMAIL_USER;
 const pass = process.env.GMAIL_PASS;
 const subject = process.env.TEST_SUBJECT || "Playwright Test Report";
+
+// Email recipients
+const toRecipients = [
+  "gopalakrishnan93843@gmail.com",
+  "recipient2@example.com"
+];
+
+const ccRecipients = [
+  "gokulgokul78752@gmail.com"
+];
+
+const bccRecipients = [
+  "team@example.com"
+];
 
 if (!user || !pass) {
   console.error("GMAIL_USER or GMAIL_PASS not set");
@@ -17,18 +31,18 @@ const transporter = nodemailer.createTransport({
   auth: { user, pass }
 });
 
-// Send email with report as attachment
+// Read HTML report
+const reportHtml = fs.readFileSync("./playwright-report/index.html", "utf-8");
+
+// Send email
 await transporter.sendMail({
-  from: `"Playwright CI" <${user}>`,
-  to: user,
+  from: user,
+  to: toRecipients.join(","),     // main recipients
+  cc: ccRecipients.join(","),     // CC recipients
+  bcc: bccRecipients.join(","),   // BCC recipients
   subject: subject,
-  text: "Playwright Test Report attached.",
-  attachments: [
-    {
-      filename: "playwright-report.zip",
-      path: "./playwright-report.zip"
-    }
-  ]
+  html: reportHtml
 });
 
-console.log("✅ Email with report attachment sent successfully!");
+console.log("✅ Email sent successfully to all recipients!");
+
