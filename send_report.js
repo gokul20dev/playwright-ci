@@ -1,34 +1,34 @@
 import nodemailer from "nodemailer";
 import fs from "fs";
-import path from "path";
 
-// Gmail credentials from environment variables
+// Gmail credentials from environment
 const user = process.env.GMAIL_USER;
 const pass = process.env.GMAIL_PASS;
 const subject = process.env.TEST_SUBJECT || "Playwright Test Report";
 
-// Ensure HTML report exists
-const reportPath = path.resolve("./playwright-report/index.html");
-if (!fs.existsSync(reportPath)) {
-  console.error("❌ Playwright HTML report not found at", reportPath);
+if (!user || !pass) {
+  console.error("GMAIL_USER or GMAIL_PASS not set");
   process.exit(1);
 }
 
-// Read the HTML report
-const reportHtml = fs.readFileSync(reportPath, "utf-8");
-
-// Configure Gmail transporter
+// Create transporter
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  auth: { user, pass },
+  auth: { user, pass }
 });
 
-// Send email
+// Send email with report as attachment
 await transporter.sendMail({
   from: `"Playwright CI" <${user}>`,
-  to: user, // or a list of recipients
-  subject,
-  html: reportHtml, // Embed HTML content directly
+  to: user,
+  subject: subject,
+  text: "Playwright Test Report attached.",
+  attachments: [
+    {
+      filename: "playwright-report.zip",
+      path: "./playwright-report.zip"
+    }
+  ]
 });
 
-console.log("✅ Email sent with HTML report!");
+console.log("✅ Email with report attachment sent successfully!");
