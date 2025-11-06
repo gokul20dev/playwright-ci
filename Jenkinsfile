@@ -4,6 +4,7 @@ pipeline {
     environment {
         NODE_HOME = tool name: 'nodejs', type: 'nodejs'
         PATH = "${NODE_HOME}/bin:${env.PATH}"
+        DOCKER_HOST = "tcp://host.docker.internal:2375" // Required for Windows + Docker Desktop
     }
 
     options {
@@ -14,7 +15,7 @@ pipeline {
 
         stage('Trigger UI Tests') {
             steps {
-                echo "⚡ Starting Playwright Test Containers..."
+                echo "⚡ Starting Playwright Test Containers asynchronously..."
                 script {
                     // List of test containers
                     def containers = ["playwright_test_1", "playwright_test_2"]
@@ -22,15 +23,15 @@ pipeline {
                     containers.each { name ->
                         sh """
                             # Remove old container if exists
-                            sudo docker rm -f ${name} || true
+                            docker rm -f ${name} || true
 
-                            # Run container and remove automatically after tests
-                             sudo docker run --rm --name ${name} \
+                            # Run container in detached mode (fire-and-forget)
+                            docker run -d --name ${name} \
                                 -v "${WORKSPACE}":/workspace \
                                 -w /workspace \
                                 gokul603/playwright-email-tests:latest
                         """
-                        echo "✅ Container ${name} ran successfully!"
+                        echo "✅ Container ${name} triggered successfully!"
                     }
                 }
             }
@@ -44,4 +45,3 @@ pipeline {
         }
     }
 }
- 
