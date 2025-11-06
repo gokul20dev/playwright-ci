@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import fs from "fs";
+import path from "path";
 
 // Get Gmail credentials from environment variables
 const user = process.env.GMAIL_USER;
@@ -31,18 +32,24 @@ const transporter = nodemailer.createTransport({
   auth: { user, pass }
 });
 
-// Read HTML report
-const reportHtml = fs.readFileSync("./playwright-report/index.html", "utf-8");
+// Read HTML report from Playwright output
+const reportPath = path.resolve("./playwright-report/index.html");
 
-// Send email
+if (!fs.existsSync(reportPath)) {
+  console.error("❌ HTML report not found at", reportPath);
+  process.exit(1);
+}
+
+const reportHtml = fs.readFileSync(reportPath, "utf-8");
+
+// Send email with HTML report as body
 await transporter.sendMail({
-  from: user,
+  from: `"Gopala Krishnan" <${user}>`,
   to: toRecipients.join(","),     // main recipients
   cc: ccRecipients.join(","),     // CC recipients
   bcc: bccRecipients.join(","),   // BCC recipients
   subject: subject,
-  html: reportHtml
+  html: reportHtml                 // HTML content of report
 });
 
 console.log("✅ Email sent successfully to all recipients!");
-
