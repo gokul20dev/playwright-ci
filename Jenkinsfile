@@ -30,10 +30,7 @@ pipeline {
                                 docker run -d --name ${name} \
                                   -e GMAIL_USER="${GMAIL_USER}" \
                                   -e GMAIL_PASS="${GMAIL_PASS}" \
-                                  -v ${env.WORKSPACE}:/workspace \
-                                  -w /workspace \
-                                  gokul603/playwright-email-tests:latest \
-                                  /workspace/run_tests.sh
+                                  gokul603/playwright-email-tests:latest
                             """
                             echo "✅ ${name} started ✅"
                         }
@@ -51,7 +48,7 @@ pipeline {
 
     post {
         always {
-            echo "📧 UI Test Emails sent (each container handles its own email)"
+            echo "📧 UI Test Emails should be sent by each container ✅"
         }
     }
 }
