@@ -20,7 +20,8 @@ pipeline {
                         sh """
                             docker rm -f ${name} || true
                             docker run -d --name ${name} \
-                              gokul603/playwright-email-tests:latest
+                              gokul603/playwright-email-tests:latest \
+                              /workspace/run_tests.sh
                         """
                         echo "✅ ${name} started ✅"
                     }
