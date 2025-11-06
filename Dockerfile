@@ -2,6 +2,7 @@ FROM mcr.microsoft.com/playwright:v1.44.0
 
 WORKDIR /workspace
 
+<<<<<<< HEAD
 COPY package*.json ./
 
 RUN npm install --quiet
@@ -19,4 +20,5 @@ COPY . .
 RUN chmod +x run_tests.sh
 
 CMD ["./run_tests.sh"]
+
 
