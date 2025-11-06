@@ -22,10 +22,10 @@ pipeline {
                     containers.each { name ->
                         sh """
                             # Remove old container if exists
-                            sudo docker rm -f ${name} || true
+                             docker rm -f ${name} || true
 
                             # Run container and remove automatically after tests
-                            sudo docker run --rm --name ${name} \
+                             docker run --rm --name ${name} \
                                 -v "${WORKSPACE}":/workspace \
                                 -w /workspace \
                                 gokul603/playwright-email-tests:latest
