@@ -3,18 +3,17 @@ set -e
 
 cd /workspace
 
-# Install updates if needed
-npm ci || npm install
+echo "▶️ Running Playwright tests..."
 
-# Run tests and generate HTML report
-npx playwright test --reporter=html
+# Run Playwright tests and generate HTML report
+npx playwright test ./tests --reporter=html
 STATUS=$?
 
-# Report
+# Create zipped report
 zip -r playwright-report.zip ./playwright-report
 
-# Send email report
-echo -e "Playwright tests completed.\nExit code: $STATUS" \
- | mutt -s "Playwright Report" -a playwright-report.zip -- gopalakrishnan93843@gmail.com
+# Send result via email
+echo -e "Playwright Tests Completed. Status: $STATUS" \
+  | mutt -s "Playwright Test Result" -a playwright-report.zip -- gopalakrishnan93843@gmail.com
 
 exit $STATUS
