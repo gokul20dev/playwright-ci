@@ -4,7 +4,6 @@ pipeline {
     environment {
         NODE_HOME = tool name: 'nodejs', type: 'nodejs'
         PATH = "${NODE_HOME}/bin:${env.PATH}"
-        DOCKER_HOST = "tcp://host.docker.internal:2375" // Required for Windows + Docker Desktop
     }
 
     options {
@@ -25,9 +24,9 @@ pipeline {
                             # Remove old container if exists
                             docker rm -f ${name} || true
 
-                            # Run container in detached mode (fire-and-forget)
+                            # Run container in detached mode (-d) so Jenkins doesn't wait
                             docker run -d --name ${name} \
-                                -v "${WORKSPACE}":/workspace \
+                                -v "/var/jenkins_home/jobs/playwright-automation-pipeline/workspace:/workspace" \
                                 -w /workspace \
                                 gokul603/playwright-email-tests:latest
                         """
