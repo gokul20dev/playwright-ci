@@ -25,7 +25,6 @@ pipeline {
                                 docker run -d --name ${name} \
                                   -e GMAIL_USER="${GMAIL_USER}" \
                                   -e GMAIL_PASS="${GMAIL_PASS}" \
-                                  -v ${env.WORKSPACE}:/workspace \
                                   gokul603/playwright-email-tests:latest
                             """
                         }
