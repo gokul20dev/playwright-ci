@@ -1,5 +1,5 @@
 #!/bin/bash
-set +e  # Do NOT exit on failure
+set +e  # Continue even if tests fail
 
 cd /workspace
 
@@ -12,21 +12,19 @@ TEST_STATUS=$?
 # Zip test report
 zip -r playwright-report.zip ./playwright-report
 
-# Email message based on status
+# Email subject & message based on results
 if [ $TEST_STATUS -eq 0 ]; then
     SUBJECT="✅ Playwright Test Passed"
-    BODY="Hey team,\n\nAll UI tests passed successfully.\n\nRegards,\nJenkins"
+    BODY="Hello,\n\nAll Playwright UI tests passed successfully.\n\nRegards,\nJenkins"
 else
     SUBJECT="❌ Playwright Test Failed"
-    BODY="Hey team,\n\nSome UI tests failed.\nPlease check the attached report.\n\nRegards,\nJenkins"
+    BODY="Hello,\n\nSome Playwright tests failed.\nPlease check the attached report.\n\nRegards,\nJenkins"
 fi
 
-# Send mail to multiple recipients
+# Send mail to your Gmail
 echo -e "$BODY" | mutt -s "$SUBJECT" \
     -a playwright-report.zip -- \
-    gokulgokul78752@gmail.com \
-    gokullcoal78752@gmail.com
+    gopalakrishnan93843@gmail.com
 
-echo "📨 Email sent to recipients!"
-
-exit 0  # ✅ Continue pipeline regardless of test results
+echo "📨 Email triggered!"
+exit 0
