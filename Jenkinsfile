@@ -4,6 +4,7 @@ pipeline {
     environment {
         NODE_HOME = tool name: 'nodejs', type: 'nodejs'
         PATH = "${NODE_HOME}/bin:${env.PATH}"
+        DOCKER_HOST = "tcp://host.docker.internal:2375"
     }
 
     options {
