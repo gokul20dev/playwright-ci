@@ -1,9 +1,10 @@
 import nodemailer from "nodemailer";
 import fs from "fs";
 
-// Read Gmail credentials from environment variables
+// Get Gmail credentials from environment variables
 const user = process.env.GMAIL_USER;
 const pass = process.env.GMAIL_PASS;
+const subject = process.env.TEST_SUBJECT || "Playwright Test Report";
 
 if (!user || !pass) {
   console.error("GMAIL_USER or GMAIL_PASS not set");
@@ -22,10 +23,9 @@ const reportHtml = fs.readFileSync("./playwright-report/index.html", "utf-8");
 // Send email
 await transporter.sendMail({
   from: user,
-  to: user,             // send to yourself
-  subject: "Playwright Test Report",
+  to: user,
+  subject: subject,
   html: reportHtml
 });
 
-console.log("Email sent successfully!");
-
+console.log("✅ Email sent successfully!");
