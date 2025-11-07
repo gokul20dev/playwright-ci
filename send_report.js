@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 import fs from "fs";
 import path from "path";
 
+<<<<<<< HEAD
 async function main() {
     const user = process.env.GMAIL_USER;
     const pass = process.env.GMAIL_PASS;
