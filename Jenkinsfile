@@ -1,6 +1,15 @@
 pipeline {
     agent any
 
+    parameters {
+        choice(name: 'TEST_SUITE', choices: [
+            'Exammaker',
+            'Examtaker',
+            'reports',
+            'all'
+        ], description: 'Select which Playwright test suite to run')
+    }
+
     environment {
         NODE_HOME = tool name: 'nodejs', type: 'nodejs'
         PATH = "${NODE_HOME}/bin:${env.PATH}"
@@ -8,41 +17,42 @@ pipeline {
     }
 
     stages {
-        stage('Trigger UI Tests') {
+        stage('Trigger UI Tests in Docker') {
             steps {
                 script {
-                    def containers = ["pw_test_1", "pw_test_2"]
+                    def containerName = "pw_test_${params.TEST_SUITE}"
 
                     withCredentials([usernamePassword(
                         credentialsId: 'gmail-smtp',
                         usernameVariable: 'GMAIL_USER',
                         passwordVariable: 'GMAIL_PASS'
                     )]) {
+                        // Clean up previous container if exists
+                        sh "docker rm -f ${containerName} || true"
 
-                        containers.each { name ->
-                            sh """
-                                docker rm -f ${name} || true
-                                docker run -d --name ${name} \
-                                  -e GMAIL_USER="${GMAIL_USER}" \
-                                  -e GMAIL_PASS="${GMAIL_PASS}" \
-                                  gokul603/playwright-email-tests:latest
-                            """
-                        }
+                        // Run Docker container with selected test suite
+                        sh """
+                            docker run --rm --name ${containerName} \\
+                              -e GMAIL_USER="${GMAIL_USER}" \\
+                              -e GMAIL_PASS="${GMAIL_PASS}" \\
+                              -e TEST_SUITE="${params.TEST_SUITE}" \\
+                              gokul603/playwright-email-tests:latest
+                        """
                     }
                 }
             }
         }
 
-        stage('Build & Deploy') {
+        stage('Deploy (Placeholder)') {
             steps {
-                echo "🚀 Deploying App while tests run..."
+                echo "🚀 Deployment step — optional"
             }
         }
     }
 
     post {
         always {
-            echo "📬 Test report email should be received ✅"
+            echo "📬 Email report sent — check your inbox ✅"
         }
     }
 }
