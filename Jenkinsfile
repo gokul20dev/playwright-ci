@@ -32,7 +32,7 @@ pipeline {
 
                         // Run Docker container with selected test suite
                         sh """
-                            docker run --rm --name ${containerName} \\
+                            docker run -d --name ${containerName} \\
                               -e GMAIL_USER="${GMAIL_USER}" \\
                               -e GMAIL_PASS="${GMAIL_PASS}" \\
                               -e TEST_SUITE="${params.TEST_SUITE}" \\
