@@ -1,12 +1,3 @@
-# Use Playwright base image
-FROM mcr.microsoft.com/playwright:v1.56.1
-
-# Set working directory
-WORKDIR /workspace
-
-# Copy local repo into container
-COPY . .
-
 # Install Node dependencies quietly
 RUN npm install --quiet
 
@@ -18,14 +9,15 @@ RUN apt-get update && \
     apt-get install -y zip dos2unix && \
     rm -rf /var/lib/apt/lists/*
 
-# Convert all scripts to Unix line endings to avoid SyntaxError
+# Convert all scripts to Unix line endings
 RUN find . -type f -name "*.sh" -exec dos2unix {} \; && \
     find . -type f -name "*.js" -exec dos2unix {} \;
 
 # Make test script executable
 RUN chmod +x run_tests.sh
 
+# Environment variable for Jenkins parameter
+ENV TEST_SUITE=all
+
 # Default command to run tests
 CMD ["./run_tests.sh"]
-
-
