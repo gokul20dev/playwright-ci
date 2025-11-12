@@ -46,7 +46,7 @@ pipeline {
 
                         // ✅ Run Docker container — image auto-runs run_tests.sh
                         sh """
-                            docker run -d --rm --name ${containerName} \
+                            docker run -d --name ${containerName} \
                               -e "GMAIL_USER=${GMAIL_USER}" \
                               -e "GMAIL_PASS=${GMAIL_PASS}" \
                               -e "AWS_REGION=${AWS_REGION}" \
