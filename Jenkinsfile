@@ -20,5 +20,3 @@
     }
 }
 
-Jenkinsfile [dos] (13:39 12/11/2025)                                 158,0-1 Bot
-"Jenkinsfile" [dos] 158L, 6830B
