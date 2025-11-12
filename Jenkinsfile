@@ -23,6 +23,20 @@ pipeline {
     stages {
 
         /* ────────────────────────────────
+         🔄 Stage 0: Pre-clean Old Containers
+        ───────────────────────────────── */
+        stage('Pre-clean Old Containers') {
+            steps {
+                script {
+                    def containerName = "pw_test_${params.TEST_SUITE}"
+                    echo "🧹 Checking for leftover container from previous runs..."
+                    sh "docker rm -f ${containerName} || true"
+                    echo "✅ Old container (if any) removed. Ready to start fresh!"
+                }
+            }
+        }
+
+        /* ────────────────────────────────
          🧪 Stage 1: Run Playwright Tests
         ───────────────────────────────── */
         stage('Run Playwright Tests in Docker') {
@@ -39,12 +53,9 @@ pipeline {
                         [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-s3-access']
                     ]) {
 
-                        echo "🧹 Cleaning up old container if exists..."
-                        sh "docker rm -f ${containerName} || true"
-
                         echo "🚀 Running Playwright test suite: ${params.TEST_SUITE}"
 
-                        // ✅ Run Docker container — image auto-runs run_tests.sh
+                        // ✅ Run new container (don't remove after finish)
                         sh """
                             docker run -d --name ${containerName} \
                               -e "GMAIL_USER=${GMAIL_USER}" \
@@ -57,7 +68,7 @@ pipeline {
                               ${IMAGE_NAME}:latest
                         """
 
-                        echo "✅ Playwright tests completed for suite '${params.TEST_SUITE}'."
+                        echo "✅ Container '${containerName}' started successfully."
                     }
                 }
             }
@@ -87,24 +98,17 @@ pipeline {
     }
 
     /* ────────────────────────────────
-       🧹 Post Actions
+       🧾 Post Actions
     ───────────────────────────────── */
     post {
-        always {
-            echo "🧹 Cleaning up leftover containers (if any)..."
-            script {
-                def containerName = "pw_test_${params.TEST_SUITE}"
-                sh "docker rm -f ${containerName} || true"
-                echo "🧽 Cleanup done."
-            }
-        }
-
         success {
             echo "📬 CI/CD pipeline ran through all stages successfully ✅"
+            echo "🧩 Container will remain running for inspection (not auto-removed)."
         }
 
         failure {
             echo "❌ Pipeline failed — check console logs for details"
+            echo "⚠️ Container preserved for debugging."
         }
     }
 }
