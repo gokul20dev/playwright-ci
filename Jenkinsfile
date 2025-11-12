@@ -57,11 +57,11 @@ EOF
                             echo "✅ Jenkins wrote ~/.aws/credentials"
 
                             docker run --rm --name pw_test_${TEST_SUITE} \
-                              -e GMAIL_USER=$GMAIL_USER \
-                              -e GMAIL_PASS=$GMAIL_PASS \
-                              -e AWS_REGION=$AWS_REGION \
-                              -e S3_BUCKET=$S3_BUCKET \
-                              -e TEST_SUITE=$TEST_SUITE \
+                              -e "GMAIL_USER=${GMAIL_USER}" \
+                              -e "GMAIL_PASS=${GMAIL_PASS}" \
+                              -e "AWS_REGION=${AWS_REGION}" \
+                              -e "S3_BUCKET=${S3_BUCKET}" \
+                              -e "TEST_SUITE=${TEST_SUITE}" \
                               -v ~/.aws:/root/.aws:ro \
                               -v $WORKSPACE:/workspace \
                               -w /workspace \
@@ -155,4 +155,3 @@ EOF
         }
     }
 }
-
