@@ -17,19 +17,19 @@ pipeline {
         // AWS Config
         AWS_REGION = "ap-south-1"
         S3_BUCKET = "playwright-test-reports-gokul"
+        IMAGE_NAME = "gokul603/playwright-email-tests"
     }
 
     stages {
 
         /* ────────────────────────────────
-         🧪 Stage 1: Run Playwright Tests in Docker
+         🧪 Stage 1: Run Playwright Tests
         ───────────────────────────────── */
         stage('Run Playwright Tests in Docker') {
             steps {
                 script {
                     def containerName = "pw_test_${params.TEST_SUITE}"
 
-                    // Inject Gmail + AWS credentials securely
                     withCredentials([
                         usernamePassword(
                             credentialsId: 'gmail-smtp',
@@ -44,9 +44,9 @@ pipeline {
 
                         echo "🚀 Running Playwright test suite: ${params.TEST_SUITE}"
 
-                        // ✅ Run Docker container — image will auto-run run_tests.sh
+                        // ✅ Run Docker container — image auto-runs run_tests.sh
                         sh """
-                            docker run -d --rm --name ${containerName} \
+                            docker run --rm --name ${containerName} \
                               -e "GMAIL_USER=${GMAIL_USER}" \
                               -e "GMAIL_PASS=${GMAIL_PASS}" \
                               -e "AWS_REGION=${AWS_REGION}" \
@@ -54,18 +54,40 @@ pipeline {
                               -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
                               -e "S3_BUCKET=${S3_BUCKET}" \
                               -e "TEST_SUITE=${params.TEST_SUITE}" \
-                              gokul603/playwright-email-tests:latest
+                              ${IMAGE_NAME}:latest
                         """
 
-                        echo "✅ Docker container '${containerName}' completed successfully."
+                        echo "✅ Playwright tests completed for suite '${params.TEST_SUITE}'."
                     }
                 }
+            }
+        }
+
+        /* ────────────────────────────────
+         🏗️ Stage 2: Build (Dummy)
+        ───────────────────────────────── */
+        stage('Build') {
+            steps {
+                echo "🏗️ This is a dummy Build stage — no actual commands."
+                echo "✅ Simulating build success..."
+                sleep(time: 2, unit: 'SECONDS')
+            }
+        }
+
+        /* ────────────────────────────────
+         🚀 Stage 3: Deploy (Dummy)
+        ───────────────────────────────── */
+        stage('Deploy') {
+            steps {
+                echo "🚀 This is a dummy Deploy stage — no actual commands."
+                echo "✅ Simulating deployment success..."
+                sleep(time: 2, unit: 'SECONDS')
             }
         }
     }
 
     /* ────────────────────────────────
-       🧹 Post-Cleanup & Notifications
+       🧹 Post Actions
     ───────────────────────────────── */
     post {
         always {
@@ -78,11 +100,11 @@ pipeline {
         }
 
         success {
-            echo "📬 Email report sent — check your inbox ✅"
+            echo "📬 CI/CD pipeline ran through all stages successfully ✅"
         }
 
         failure {
-            echo "❌ Pipeline failed — check console logs for errors"
+            echo "❌ Pipeline failed — check console logs for details"
         }
     }
 }
