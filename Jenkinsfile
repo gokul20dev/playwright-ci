@@ -53,6 +53,7 @@ pipeline {
         stage('Run Playwright Tests') {
             steps {
                 script {
+
                     def containerName = "pw_test_${params.TEST_SUITE}"
 
                     withCredentials([
@@ -66,34 +67,37 @@ pipeline {
 
                         echo "🚀 Creating container for test suite: ${params.TEST_SUITE}"
 
-                        // ⭐ SAFE SINGLE-QUOTED VERSION ⭐
+                        // ⭐ SAFE container create (OPTION-B)
                         sh """
                             docker create --name '${containerName}' \
-                              -e 'GMAIL_USER=${GMAIL_USER}' \
-                              -e 'GMAIL_PASS=${GMAIL_PASS}' \
-                              -e 'AWS_REGION=${AWS_REGION}' \
-                              -e 'AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}' \
-                              -e 'AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}' \
-                              -e 'S3_BUCKET=${S3_BUCKET}' \
-                              -e 'TEST_SUITE=${params.TEST_SUITE}' \
+                              -e GMAIL_USER='${GMAIL_USER}' \
+                              -e GMAIL_PASS='${GMAIL_PASS}' \
+                              -e AWS_REGION='${AWS_REGION}' \
+                              -e AWS_ACCESS_KEY_ID='${AWS_ACCESS_KEY_ID}' \
+                              -e AWS_SECRET_ACCESS_KEY='${AWS_SECRET_ACCESS_KEY}' \
+                              -e S3_BUCKET='${S3_BUCKET}' \
+                              -e TEST_SUITE='${params.TEST_SUITE}' \
                               '${IMAGE_NAME}:latest'
                         """
 
                         echo "📦 Copying GitHub code into container..."
                         sh "docker cp ${WORKSPACE}/. ${containerName}:/workspace"
 
-                        echo "🔧 Fixing permissions & starting container..."
+                        echo "🔧 Starting container and fixing permissions..."
                         sh "docker start ${containerName}"
                         sh "docker exec ${containerName} chmod +x /workspace/run_tests.sh"
 
-                        echo "🧪 Launching Playwright tests in BACKGROUND..."
+                        echo "🧪 Launching Playwright tests IN BACKGROUND..."
 
-                        // Non-blocking execution
+                        // ⭐ NON-BLOCKING execution + AUTO-STOP container
                         sh """
                             docker exec -d ${containerName} bash /workspace/run_tests.sh
 
-                            # Stop container automatically when it finishes
-                            ( docker wait ${containerName} > /dev/null 2>&1 && docker stop ${containerName} ) &
+                            # Background watcher to STOP container after tests finish
+                            (
+                                docker exec ${containerName} bash /workspace/run_tests.sh
+                                docker stop ${containerName}
+                            ) &
                         """
 
                         echo "➡️ Jenkins continues immediately (tests running in background)"
@@ -108,7 +112,7 @@ pipeline {
         stage('Build') {
             steps {
                 echo "🏗️ Dummy build..."
-                sleep(time: 2, unit: 'SECONDS')
+                sleep 2
             }
         }
 
@@ -118,7 +122,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo "🚀 Dummy deploy..."
-                sleep(time: 2, unit: 'SECONDS')
+                sleep 2
             }
         }
     }
