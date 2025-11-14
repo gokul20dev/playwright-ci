@@ -66,17 +66,17 @@ pipeline {
 
                         echo "🚀 Creating container for test suite: ${params.TEST_SUITE}"
 
-                        // 1️⃣ Create container (don’t run tests yet)
+                        // ⭐ FIXED BLOCK WITH DOUBLE QUOTES ⭐
                         sh """
-                            docker create --name ${containerName} \
-                              -e GMAIL_USER=${GMAIL_USER} \
-                              -e GMAIL_PASS=${GMAIL_PASS} \
-                              -e AWS_REGION=${AWS_REGION} \
-                              -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
-                              -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
-                              -e S3_BUCKET=${S3_BUCKET} \
-                              -e TEST_SUITE=${params.TEST_SUITE} \
-                              ${IMAGE_NAME}:latest
+                            docker create --name \\"${containerName}\\" \
+                              -e \\"GMAIL_USER=${GMAIL_USER}\\" \
+                              -e \\"GMAIL_PASS=${GMAIL_PASS}\\" \
+                              -e \\"AWS_REGION=${AWS_REGION}\\" \
+                              -e \\"AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}\\" \
+                              -e \\"AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}\\" \
+                              -e \\"S3_BUCKET=${S3_BUCKET}\\" \
+                              -e \\"TEST_SUITE=${params.TEST_SUITE}\\" \
+                              \\"${IMAGE_NAME}:latest\\"
                         """
 
                         echo "📦 Copying GitHub code into container..."
@@ -88,11 +88,11 @@ pipeline {
 
                         echo "🧪 Launching Playwright tests in BACKGROUND..."
 
-                        // 2️⃣ Run tests asynchronously (do NOT wait)
+                        // Run tests async — DO NOT WAIT
                         sh """
                             docker exec -d ${containerName} bash /workspace/run_tests.sh
 
-                            # Background watcher: stop container when script exits
+                            # Auto-stop container when test script finishes
                             ( docker wait ${containerName} > /dev/null 2>&1 && docker stop ${containerName} ) &
                         """
 
@@ -128,7 +128,7 @@ pipeline {
     ───────────────────────────────── */
     post {
         success {
-            echo "✅ Pipeline finished successfully — container still working in background."
+            echo "✅ Pipeline finished successfully — tests running in background."
         }
         failure {
             echo "❌ Pipeline failed — check logs."
