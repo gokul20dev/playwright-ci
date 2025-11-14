@@ -18,12 +18,14 @@ pipeline {
         AWS_REGION = "ap-south-1"
         S3_BUCKET = "playwright-test-reports-gokul"
 
-        // ✅ Correct image
         IMAGE_NAME = "gokul603/playwright-email-tests"
     }
 
     stages {
 
+        /* ───────────────────────────
+           🧹 CLEANUP
+        ─────────────────────────── */
         stage('Cleanup') {
             steps {
                 script {
@@ -32,6 +34,9 @@ pipeline {
             }
         }
 
+        /* ───────────────────────────
+           🧪 RUN TESTS
+        ─────────────────────────── */
         stage('Run Playwright Tests') {
             steps {
                 script {
@@ -51,13 +56,13 @@ pipeline {
                               --name pw_runner \
                               -v ${WORKSPACE}:/workspace \
                               -w /workspace \
-                              -e TEST_SUITE=${params.TEST_SUITE} \
-                              -e GMAIL_USER=${GMAIL_USER} \
-                              -e GMAIL_PASS=${GMAIL_PASS} \
-                              -e AWS_REGION=${AWS_REGION} \
-                              -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
-                              -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
-                              -e S3_BUCKET=${S3_BUCKET} \
+                              --env TEST_SUITE=${params.TEST_SUITE} \
+                              --env GMAIL_USER=${GMAIL_USER} \
+                              --env GMAIL_PASS="${GMAIL_PASS}" \
+                              --env AWS_REGION=${AWS_REGION} \
+                              --env AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
+                              --env AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
+                              --env S3_BUCKET=${S3_BUCKET} \
                               ${IMAGE_NAME}:latest \
                               bash run_tests.sh
                         """
@@ -68,15 +73,28 @@ pipeline {
             }
         }
 
+        /* ───────────────────────────
+           🏗️ BUILD (DUMMY)
+        ─────────────────────────── */
         stage('Build') {
-            steps { echo "Skipping build… (dummy)" }
+            steps { 
+                echo "🏗️ Dummy Build Stage" 
+            }
         }
 
+        /* ───────────────────────────
+           🚀 DEPLOY (DUMMY)
+        ─────────────────────────── */
         stage('Deploy') {
-            steps { echo "Skipping deploy… (dummy)" }
+            steps { 
+                echo "🚀 Dummy Deploy Stage" 
+            }
         }
     }
 
+    /* ───────────────────────────
+       ✔ POST ACTIONS
+    ─────────────────────────── */
     post {
         success {
             echo "✅ Pipeline Completed Successfully"
@@ -87,4 +105,3 @@ pipeline {
         }
     }
 }
-
