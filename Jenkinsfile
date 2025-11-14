@@ -15,7 +15,6 @@ pipeline {
 
         DOCKER_HOST = "tcp://host.docker.internal:2375"
 
-        // AWS Config
         AWS_REGION = "ap-south-1"
         S3_BUCKET = "playwright-test-reports-gokul"
         IMAGE_NAME = "gokul603/playwright-email-tests"
@@ -23,23 +22,16 @@ pipeline {
 
     stages {
 
-        /* ────────────────────────────────
-         🔄 Stage 0: Pre-clean Old Containers
-        ───────────────────────────────── */
         stage('Pre-clean Old Containers') {
             steps {
                 script {
                     def containerName = "pw_test_${params.TEST_SUITE}"
-                    echo "🧹 Checking for leftover container from previous runs..."
+                    echo "🧹 Removing previous container..."
                     sh "docker rm -f ${containerName} || true"
-                    echo "✅ Old container (if any) removed. Ready to start fresh!"
                 }
             }
         }
 
-        /* ────────────────────────────────
-         🧪 Stage 1: Run Playwright Tests
-        ───────────────────────────────── */
         stage('Run Playwright Tests in Docker') {
             steps {
                 script {
@@ -56,9 +48,11 @@ pipeline {
 
                         echo "🚀 Running Playwright test suite: ${params.TEST_SUITE}"
 
-                        // ✅ Run new container (don't remove after finish)
                         sh """
-                            docker run -d --name ${containerName} \
+                            docker run -d --rm \
+                              --name ${containerName} \
+                              -v ${WORKSPACE}:/workspace \
+                              -w /workspace \
                               -e "GMAIL_USER=${GMAIL_USER}" \
                               -e "GMAIL_PASS=${GMAIL_PASS}" \
                               -e "AWS_REGION=${AWS_REGION}" \
@@ -66,7 +60,8 @@ pipeline {
                               -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
                               -e "S3_BUCKET=${S3_BUCKET}" \
                               -e "TEST_SUITE=${params.TEST_SUITE}" \
-                              ${IMAGE_NAME}:latest
+                              ${IMAGE_NAME}:latest \
+                              bash run_tests.sh
                         """
 
                         echo "✅ Container '${containerName}' started successfully."
@@ -75,41 +70,27 @@ pipeline {
             }
         }
 
-        /* ────────────────────────────────
-         🏗️ Stage 2: Build (Dummy)
-        ───────────────────────────────── */
         stage('Build') {
             steps {
-                echo "🏗️ This is a dummy Build stage — no actual commands."
-                echo "✅ Simulating build success..."
+                echo "🏗️ This is a dummy Build stage — no real build."
                 sleep(time: 2, unit: 'SECONDS')
             }
         }
 
-        /* ────────────────────────────────
-         🚀 Stage 3: Deploy (Dummy)
-        ───────────────────────────────── */
         stage('Deploy') {
             steps {
-                echo "🚀 This is a dummy Deploy stage — no actual commands."
-                echo "✅ Simulating deployment success..."
+                echo "🚀 Dummy Deploy stage."
                 sleep(time: 2, unit: 'SECONDS')
             }
         }
     }
 
-    /* ────────────────────────────────
-       🧾 Post Actions
-    ───────────────────────────────── */
     post {
         success {
-            echo "📬 CI/CD pipeline ran through all stages successfully ✅"
-            echo "🧩 Container will remain running for inspection (not auto-removed)."
+            echo "📬 CI/CD pipeline completed successfully"
         }
-
         failure {
-            echo "❌ Pipeline failed — check console logs for details"
-            echo "⚠️ Container preserved for debugging."
+            echo "❌ Pipeline failed"
         }
     }
 }
