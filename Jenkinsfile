@@ -23,9 +23,6 @@ pipeline {
 
     stages {
 
-        /* -------------------------
-           CHECKOUT COMPLETE REPO
-        -------------------------- */
         stage('Checkout Code') {
             steps {
                 echo "📥 Pulling latest code from GitHub..."
@@ -44,10 +41,6 @@ pipeline {
             }
         }
 
-        /* ---------------------------------
-           RUN TESTS USING GITHUB WORKSPACE
-           (docker cp FIX for docker volume)
-        ---------------------------------- */
         stage('Run Playwright Tests in Docker') {
             steps {
                 script {
@@ -65,7 +58,7 @@ pipeline {
                         echo "🚀 Running Playwright test suite: ${params.TEST_SUITE}"
 
                         sh """
-                            # 1️⃣ Create container but DON'T run it yet
+                            # 1️⃣ Create container but DON'T start it
                             docker create --name "${containerName}" \
                               -e "GMAIL_USER=${GMAIL_USER}" \
                               -e "GMAIL_PASS=${GMAIL_PASS}" \
@@ -76,10 +69,10 @@ pipeline {
                               -e "TEST_SUITE=${params.TEST_SUITE}" \
                               "${IMAGE_NAME}:latest"
 
-                            # 2️⃣ Copy all GitHub code into the container
-                            docker cp ${WORKSPACE}/. "${containerName}":/workspace
+                            # 2️⃣ Copy entire GitHub workspace into container
+                            docker cp "${WORKSPACE}/." "${containerName}:/workspace"
 
-                            # 3️⃣ Start the container (run tests)
+                            # 3️⃣ Start container to run tests
                             docker start "${containerName}"
                         """
 
