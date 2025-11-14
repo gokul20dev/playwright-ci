@@ -1,31 +1,49 @@
 # Base image with Playwright + Node
 FROM mcr.microsoft.com/playwright:v1.56.1-jammy
 
+# ---------- WORKDIR ----------
 WORKDIR /workspace
 
-# Only copy package files (optional)
+# ---------- COPY PACKAGE FILES (cache) ----------
 COPY package*.json ./
 
-# Install dependencies (cached layer)
+# ---------- Install dependencies ----------
 RUN npm ci --quiet || npm install --legacy-peer-deps --quiet
 
-# Install Playwright browsers + OS deps
+# ---------- Copy everything (initial version) ----------
+COPY . .
+
+# --- FIX: Wrapper so Playwright loads TS config correctly ----
+RUN echo "module.exports = require('./playwright.config.ts').default;" > playwright.config.js
+
+# ---------- Install Playwright browsers + OS deps ----------
 RUN npx playwright install --with-deps
 
-# Install system deps (jq added)
+# ---------- Install additional system deps ----------
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends unzip curl xvfb dos2unix jq && \
     curl -s https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip && \
     unzip -q awscliv2.zip && ./aws/install && \
     rm -rf awscliv2.zip aws/ /var/lib/apt/lists/*
 
-# Ensure workspace exists
-RUN mkdir -p /workspace
+# ---------- Fix CRLF from Windows ----------
+RUN find . -type f \( -name "*.sh" -o -name "*.js" -o -name "*.ts" \) -exec dos2unix {} + || true
 
-# Default ENV
-ENV TEST_SUITE=all \
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+# ---------- Make script executable (safe default) ----------
+RUN chmod +x /workspace/run_tests.sh || true
 
-# ❗ REMOVE CMD COMPLETELY
-# Container should not auto-run anything
+# ------------------------------------------------------------
+# IMPORTANT CHANGE FOR OPTION B:
+# Container MUST NOT auto-run tests.
+# It must stay alive so Jenkins can:
+# 1) docker create
+# 2) docker cp workspace/
+# 3) docker exec chmod
+# 4) docker exec /workspace/run_tests.sh
+#
+# So we DISABLE tests in CMD.
+# ------------------------------------------------------------
+
+# Keep container alive until Jenkins starts tests
+ENTRYPOINT ["tail", "-f", "/dev/null"]
 
