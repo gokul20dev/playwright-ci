@@ -27,9 +27,8 @@ pipeline {
             steps {
                 script {
                     def containerName = "pw_test_${params.TEST_SUITE}"
-                    echo "🧹 Checking for leftover container from previous runs..."
-                    sh "docker rm -f ${containerName} || true"
-                    echo "✅ Old container removed."
+                    echo "🧹 Cleaning previous container..."
+                    sh "docker rm -f \"${containerName}\" || true"
                 }
             }
         }
@@ -51,15 +50,15 @@ pipeline {
                         echo "🚀 Running Playwright test suite: ${params.TEST_SUITE}"
 
                         sh """
-                            docker run -d --name ${containerName} \
-                              -e GMAIL_USER=${GMAIL_USER} \
-                              -e GMAIL_PASS=${GMAIL_PASS} \
-                              -e AWS_REGION=${AWS_REGION} \
-                              -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
-                              -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
-                              -e S3_BUCKET=${S3_BUCKET} \
-                              -e TEST_SUITE=${params.TEST_SUITE} \
-                              ${IMAGE_NAME}:latest
+                            docker run -d --name "${containerName}" \
+                              -e "GMAIL_USER=${GMAIL_USER}" \
+                              -e "GMAIL_PASS=${GMAIL_PASS}" \
+                              -e "AWS_REGION=${AWS_REGION}" \
+                              -e "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" \
+                              -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
+                              -e "S3_BUCKET=${S3_BUCKET}" \
+                              -e "TEST_SUITE=${params.TEST_SUITE}" \
+                              "${IMAGE_NAME}:latest"
                         """
 
                         echo "✅ Container '${containerName}' started successfully."
