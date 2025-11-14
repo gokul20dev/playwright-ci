@@ -30,7 +30,6 @@ pipeline {
             steps {
                 script {
                     def containerName = "pw_test_${params.TEST_SUITE}"
-
                     echo "🧹 Removing previous container if exists..."
                     sh "docker rm -f ${containerName} || true"
                 }
@@ -38,7 +37,7 @@ pipeline {
         }
 
         /* ────────────────────────────────
-           📥 1. Checkout GitHub Code
+           📥 1. Checkout Code
         ───────────────────────────────── */
         stage('Checkout Code') {
             steps {
@@ -49,7 +48,7 @@ pipeline {
         }
 
         /* ────────────────────────────────
-           🧪 2. Run Tests (Non-blocking)
+           🧪 2. Run Playwright Tests (NON-BLOCKING)
         ───────────────────────────────── */
         stage('Run Playwright Tests') {
             steps {
@@ -67,34 +66,37 @@ pipeline {
 
                         echo "🚀 Creating container for test suite: ${params.TEST_SUITE}"
 
-                        // 1️⃣ Create container (NOT running it yet)
+                        // 1️⃣ Create container (don’t run tests yet)
                         sh """
                             docker create --name ${containerName} \
-                              -e "GMAIL_USER=${GMAIL_USER}" \
-                              -e "GMAIL_PASS=${GMAIL_PASS}" \
-                              -e "AWS_REGION=${AWS_REGION}" \
-                              -e "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" \
-                              -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
-                              -e "S3_BUCKET=${S3_BUCKET}" \
-                              -e "TEST_SUITE=${params.TEST_SUITE}" \
+                              -e GMAIL_USER=${GMAIL_USER} \
+                              -e GMAIL_PASS=${GMAIL_PASS} \
+                              -e AWS_REGION=${AWS_REGION} \
+                              -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
+                              -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
+                              -e S3_BUCKET=${S3_BUCKET} \
+                              -e TEST_SUITE=${params.TEST_SUITE} \
                               ${IMAGE_NAME}:latest
                         """
 
-                        echo "📦 Copying latest GitHub code into container..."
+                        echo "📦 Copying GitHub code into container..."
                         sh "docker cp ${WORKSPACE}/. ${containerName}:/workspace"
 
-                        echo "🔧 Fixing permissions..."
+                        echo "🔧 Fixing permissions & starting container..."
                         sh "docker start ${containerName}"
                         sh "docker exec ${containerName} chmod +x /workspace/run_tests.sh"
 
-                        echo "🧪 Starting Playwright tests in BACKGROUND..."
-                        // 3️⃣ Run tests in background and auto-stop when finished
+                        echo "🧪 Launching Playwright tests in BACKGROUND..."
+
+                        // 2️⃣ Run tests asynchronously (do NOT wait)
                         sh """
-                            docker exec -d ${containerName} \
-                                bash -c "/workspace/run_tests.sh && docker stop ${containerName}"
+                            docker exec -d ${containerName} bash /workspace/run_tests.sh
+
+                            # Background watcher: stop container when script exits
+                            ( docker wait ${containerName} > /dev/null 2>&1 && docker stop ${containerName} ) &
                         """
 
-                        echo "➡️ Jenkins is NOT waiting — tests running in background!"
+                        echo "➡️ Jenkins continues immediately (tests running in background)"
                     }
                 }
             }
@@ -121,12 +123,15 @@ pipeline {
         }
     }
 
+    /* ────────────────────────────────
+       🧾 Post Actions
+    ───────────────────────────────── */
     post {
         success {
-            echo "✅ Pipeline completed successfully (tests still running in background)"
+            echo "✅ Pipeline finished successfully — container still working in background."
         }
         failure {
-            echo "❌ Pipeline failed — check logs"
+            echo "❌ Pipeline failed — check logs."
         }
     }
 }
