@@ -23,6 +23,9 @@ pipeline {
 
     stages {
 
+        /* -------------------------
+           CHECKOUT COMPLETE REPO
+        -------------------------- */
         stage('Checkout Code') {
             steps {
                 echo "📥 Pulling latest code from GitHub..."
@@ -41,6 +44,9 @@ pipeline {
             }
         }
 
+        /* -----------------------------------
+           CREATE → COPY FILES → START → RUN
+        ------------------------------------ */
         stage('Run Playwright Tests in Docker') {
             steps {
                 script {
@@ -58,7 +64,7 @@ pipeline {
                         echo "🚀 Running Playwright test suite: ${params.TEST_SUITE}"
 
                         sh """
-                            # 1️⃣ Create container but DO NOT run yet
+                            # 1️⃣ Create the container (but do NOT run anything!)
                             docker create --name "${containerName}" \
                               -e "GMAIL_USER=${GMAIL_USER}" \
                               -e "GMAIL_PASS=${GMAIL_PASS}" \
@@ -69,17 +75,20 @@ pipeline {
                               -e "TEST_SUITE=${params.TEST_SUITE}" \
                               "${IMAGE_NAME}:latest"
 
-                            # 2️⃣ Copy entire Jenkins workspace to container
+                            # 2️⃣ Copy workspace from Jenkins → container
                             docker cp "${WORKSPACE}/." "${containerName}:/workspace"
 
-                            # 3️⃣ Fix permissions for run_tests.sh
+                            # 3️⃣ Start container (idle)
+                            docker start "${containerName}"
+
+                            # 4️⃣ Add execute permission
                             docker exec "${containerName}" chmod +x /workspace/run_tests.sh
 
-                            # 4️⃣ Start container (executes run_tests.sh automatically)
-                            docker start "${containerName}"
+                            # 5️⃣ Run the actual test script
+                            docker exec "${containerName}" /workspace/run_tests.sh
                         """
 
-                        echo "✅ Playwright container '${containerName}' started with fixed permissions."
+                        echo "✅ Playwright tests executed successfully inside '${containerName}'."
                     }
                 }
             }
