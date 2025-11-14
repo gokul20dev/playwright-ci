@@ -51,7 +51,6 @@ pipeline {
                         sh """
                             docker run -d \
                               --name ${containerName} \
-                              -v ${WORKSPACE}:/workspace \
                               -w /workspace \
                               -e "GMAIL_USER=${GMAIL_USER}" \
                               -e "GMAIL_PASS=${GMAIL_PASS}" \
