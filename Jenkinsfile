@@ -66,17 +66,17 @@ pipeline {
 
                         echo "🚀 Creating container for test suite: ${params.TEST_SUITE}"
 
-                        // ⭐ FIXED BLOCK WITH DOUBLE QUOTES ⭐
+                        // ⭐ SAFE SINGLE-QUOTED VERSION ⭐
                         sh """
-                            docker create --name \\"${containerName}\\" \
-                              -e \\"GMAIL_USER=${GMAIL_USER}\\" \
-                              -e \\"GMAIL_PASS=${GMAIL_PASS}\\" \
-                              -e \\"AWS_REGION=${AWS_REGION}\\" \
-                              -e \\"AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}\\" \
-                              -e \\"AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}\\" \
-                              -e \\"S3_BUCKET=${S3_BUCKET}\\" \
-                              -e \\"TEST_SUITE=${params.TEST_SUITE}\\" \
-                              \\"${IMAGE_NAME}:latest\\"
+                            docker create --name '${containerName}' \
+                              -e 'GMAIL_USER=${GMAIL_USER}' \
+                              -e 'GMAIL_PASS=${GMAIL_PASS}' \
+                              -e 'AWS_REGION=${AWS_REGION}' \
+                              -e 'AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}' \
+                              -e 'AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}' \
+                              -e 'S3_BUCKET=${S3_BUCKET}' \
+                              -e 'TEST_SUITE=${params.TEST_SUITE}' \
+                              '${IMAGE_NAME}:latest'
                         """
 
                         echo "📦 Copying GitHub code into container..."
@@ -88,11 +88,11 @@ pipeline {
 
                         echo "🧪 Launching Playwright tests in BACKGROUND..."
 
-                        // Run tests async — DO NOT WAIT
+                        // Non-blocking execution
                         sh """
                             docker exec -d ${containerName} bash /workspace/run_tests.sh
 
-                            # Auto-stop container when test script finishes
+                            # Stop container automatically when it finishes
                             ( docker wait ${containerName} > /dev/null 2>&1 && docker stop ${containerName} ) &
                         """
 
