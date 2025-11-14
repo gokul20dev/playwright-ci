@@ -88,7 +88,7 @@ let emailBody = `
              style="display:inline-block;background:#1976d2;color:#fff;
                     padding:10px 14px;font-weight:bold;border-radius:6px;
                     text-decoration:none;font-size:13px;">
-            View Full HTML Report
+            View Ful HTML Report
           </a>
         </p>
       ` : ""}
