@@ -72,7 +72,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo "🏗️ This is a dummy Build stage — no real build."
+                echo "🏗️  This is a dummy Build stage — no real build."
                 sleep(time: 2, unit: 'SECONDS')
             }
         }
@@ -94,3 +94,4 @@ pipeline {
         }
     }
 }
+
