@@ -49,7 +49,7 @@ pipeline {
                         echo "🚀 Running Playwright test suite: ${params.TEST_SUITE}"
 
                         sh """
-                            docker run -d --rm \
+                            docker run -d \
                               --name ${containerName} \
                               -v ${WORKSPACE}:/workspace \
                               -w /workspace \
