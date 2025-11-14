@@ -6,6 +6,8 @@ cd /workspace
 echo "▶️ [$(date +"%T")] Starting Playwright CI Test Runner..."
 echo "-----------------------------------------------"
 
+START_TIME=$(date +%s)
+
 # --- STEP 1: Install dependencies safely ---
 echo "📦 [$(date +"%T")] Installing dependencies..."
 if [ -f "package-lock.json" ]; then
@@ -14,7 +16,7 @@ if [ -f "package-lock.json" ]; then
         npm install --legacy-peer-deps --quiet;
     }
 else
-    npm install --legacy-peer-deps --quiet
+    npm install --quiet
 fi
 echo "✅ [$(date +"%T")] Dependencies installed."
 
@@ -24,31 +26,52 @@ PLAYWRIGHT_LOG="playwright_error.log"
 echo "▶️ [$(date +"%T")] Running Playwright tests for suite: ${TEST_SUITE}"
 
 if [ "$TEST_SUITE" = "all" ]; then
-    xvfb-run -a timeout 180s npx playwright test --reporter=html > >(tee $PLAYWRIGHT_LOG) 2>&1 || true
+    xvfb-run -a timeout 180s npx playwright test --config=playwright.config.js > >(tee $PLAYWRIGHT_LOG) 2>&1 || true
 else
-    xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}.spec.js" --reporter=html > >(tee $PLAYWRIGHT_LOG) 2>&1 || true
+    xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}.spec.js" --config=playwright.config.js > >(tee $PLAYWRIGHT_LOG) 2>&1 || true
 fi
 
-echo "🕒 [$(date +"%T")] Waiting 5 seconds for report finalization..."
-sleep 5
+echo "🕒 [$(date +"%T")] Waiting 4 seconds for report finalization..."
+sleep 4
 
-# --- STEP 3: Ensure report exists ---
-if [ -d "playwright-report" ]; then
-    echo "✅ [$(date +"%T")] Playwright HTML report generated successfully."
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+export TEST_DURATION="${DURATION}s"
+
+# --- STEP 3: Detect ENVIRONMENT automatically ---
+echo "🌍 Detecting Environment..."
+
+if grep -qi "staging" "$PLAYWRIGHT_LOG"; then
+    export ENVIRONMENT="Staging"
+elif grep -qi "uat" "$PLAYWRIGHT_LOG"; then
+    export ENVIRONMENT="UAT"
+elif grep -qi "dev" "$PLAYWRIGHT_LOG"; then
+    export ENVIRONMENT="Development"
+elif grep -qi "qa" "$PLAYWRIGHT_LOG"; then
+    export ENVIRONMENT="QA"
 else
-    echo "⚠️ [$(date +"%T")] No Playwright report found. Creating fallback HTML..."
+    export ENVIRONMENT="Production"
+fi
+
+echo "🌍 Environment detected: $ENVIRONMENT"
+
+# --- STEP 4: Ensure HTML report exists ---
+if [ -d "playwright-report" ] && [ -f "playwright-report/index.html" ]; then
+    echo "✅ [$(date +"%T")] HTML report generated."
+else
+    echo "⚠️ [$(date +"%T")] HTML report missing. Creating fallback..."
     mkdir -p playwright-report
     {
-        echo "<html><body style='font-family: monospace; background-color:#111; color:#f55;'>"
+        echo "<html><body style='font-family: monospace; background:#111; color:#f55;'>"
         echo "<h2>❌ Playwright Tests Failed: ${TEST_SUITE}</h2>"
         echo "<p><b>Timestamp:</b> $(date)</p>"
-        echo "<h3>Captured Error Log:</h3><pre>"
-        cat "$PLAYWRIGHT_LOG" || echo "No log captured."
+        echo "<h3>Error Log:</h3><pre>"
+        cat "$PLAYWRIGHT_LOG" || echo "No logs found."
         echo "</pre></body></html>"
     } > playwright-report/index.html
 fi
 
-# --- STEP 4: Determine test status ---
+# --- STEP 5: Determine test status ---
 if grep -qi "failed" "$PLAYWRIGHT_LOG"; then
     export TEST_STATUS="Failed"
     export TEST_SUBJECT="Playwright Tests Failed: ${TEST_SUITE}"
@@ -57,14 +80,13 @@ else
     export TEST_SUBJECT="Playwright Tests Passed: ${TEST_SUITE}"
 fi
 
-# --- STEP 5: Upload to AWS S3 ---
+# --- STEP 6: Upload to AWS S3 ---
 if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ] && [ -f "playwright-report/index.html" ]; then
     TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
     S3_PATH="${TEST_SUITE}/${TIMESTAMP}/"
 
     echo "☁️ [$(date +"%T")] Uploading report to S3: s3://${S3_BUCKET}/${S3_PATH}"
 
-    # If report file is empty, wait a bit
     if [ ! -s "playwright-report/index.html" ]; then
         echo "⚠️ Report seems empty — waiting 5 more seconds..."
         sleep 5
@@ -73,7 +95,6 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ] && [ -f "playwright-repor
     if aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}" --recursive; then
         echo "🌐 [$(date +"%T")] Report uploaded successfully!"
 
-        # Verify index.html exists in S3
         if aws s3 ls "s3://${S3_BUCKET}/${S3_PATH}index.html" >/dev/null; then
             export REPORT_URL=$(aws s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400)
             echo "🔗 Report URL (24h): ${REPORT_URL}"
@@ -90,14 +111,14 @@ else
     export REPORT_URL=""
 fi
 
-# --- STEP 6: Send Email Report ---
+# --- STEP 7: Send Email Report ---
 echo "📧 [$(date +"%T")] Sending report email..."
 export GMAIL_USER=${GMAIL_USER}
 export GMAIL_PASS=${GMAIL_PASS}
 
 node send_report.js || echo "⚠️ Email sending failed. Continuing..."
 
-# --- STEP 7: Cleanup ---
+# --- STEP 8: Cleanup ---
 echo "🧹 [$(date +"%T")] Cleaning up Playwright processes..."
 pkill -f "playwright" || true
 
