@@ -61,7 +61,7 @@ pipeline {
                               -e "S3_BUCKET=${S3_BUCKET}" \
                               -e "TEST_SUITE=${params.TEST_SUITE}" \
                               ${IMAGE_NAME}:latest \
-                              bash /workspace/run_tests.sh
+                              bash -c "chmod +x /workspace/run_tests.sh && /workspace/run_tests.sh"
                         """
 
                         echo "✅ Container '${containerName}' started successfully."
