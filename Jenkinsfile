@@ -38,7 +38,7 @@ pipeline {
         }
 
         /* ────────────────────────────────
-           📥 1. Checkout Full GitHub Repo
+           📥 1. Checkout GitHub Code
         ───────────────────────────────── */
         stage('Checkout Code') {
             steps {
@@ -49,7 +49,7 @@ pipeline {
         }
 
         /* ────────────────────────────────
-           🧪 2. Run Playwright Tests in Container
+           🧪 2. Run Tests (Non-blocking)
         ───────────────────────────────── */
         stage('Run Playwright Tests') {
             steps {
@@ -67,7 +67,7 @@ pipeline {
 
                         echo "🚀 Creating container for test suite: ${params.TEST_SUITE}"
 
-                        // 1️⃣ Create container (does NOT start tests)
+                        // 1️⃣ Create container (NOT running it yet)
                         sh """
                             docker create --name ${containerName} \
                               -e "GMAIL_USER=${GMAIL_USER}" \
@@ -81,30 +81,20 @@ pipeline {
                         """
 
                         echo "📦 Copying latest GitHub code into container..."
-
-                        // 2️⃣ Copy GitHub code into /workspace inside container
-                        sh """
-                            docker cp ${WORKSPACE}/. ${containerName}:/workspace
-                        """
+                        sh "docker cp ${WORKSPACE}/. ${containerName}:/workspace"
 
                         echo "🔧 Fixing permissions..."
-                        // 3️⃣ Make run_tests.sh executable
+                        sh "docker start ${containerName}"
+                        sh "docker exec ${containerName} chmod +x /workspace/run_tests.sh"
+
+                        echo "🧪 Starting Playwright tests in BACKGROUND..."
+                        // 3️⃣ Run tests in background and auto-stop when finished
                         sh """
-                            docker start ${containerName}
-                            docker exec ${containerName} chmod +x /workspace/run_tests.sh
+                            docker exec -d ${containerName} \
+                                bash -c "/workspace/run_tests.sh && docker stop ${containerName}"
                         """
 
-                        echo "🧪 Starting Playwright tests..."
-                        // 4️⃣ Run tests inside container
-                        sh """
-                            docker exec ${containerName} /workspace/run_tests.sh
-                        """
-
-                        echo "🧹 Stopping container after test completion..."
-                        // 5️⃣ Stop container after tests complete
-                        sh """
-                            docker stop ${containerName}
-                        """
+                        echo "➡️ Jenkins is NOT waiting — tests running in background!"
                     }
                 }
             }
@@ -131,12 +121,9 @@ pipeline {
         }
     }
 
-    /* ────────────────────────────────
-       📩 Post Actions
-    ───────────────────────────────── */
     post {
         success {
-            echo "✅ Pipeline completed successfully"
+            echo "✅ Pipeline completed successfully (tests still running in background)"
         }
         failure {
             echo "❌ Pipeline failed — check logs"
