@@ -53,13 +53,13 @@ pipeline {
                               --name ${containerName} \
                               -v ${WORKSPACE}:/workspace \
                               -w /workspace \
-                              -e GMAIL_USER=${GMAIL_USER} \
-                              -e GMAIL_PASS=${GMAIL_PASS} \
-                              -e AWS_REGION=${AWS_REGION} \
-                              -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
-                              -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
-                              -e S3_BUCKET=${S3_BUCKET} \
-                              -e TEST_SUITE=${params.TEST_SUITE} \
+                              -e "GMAIL_USER=${GMAIL_USER}" \
+                              -e "GMAIL_PASS=${GMAIL_PASS}" \
+                              -e "AWS_REGION=${AWS_REGION}" \
+                              -e "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" \
+                              -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
+                              -e "S3_BUCKET=${S3_BUCKET}" \
+                              -e "TEST_SUITE=${params.TEST_SUITE}" \
                               ${IMAGE_NAME}:latest \
                               bash /workspace/run_tests.sh
                         """
