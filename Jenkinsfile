@@ -23,6 +23,17 @@ pipeline {
 
     stages {
 
+        /* --------------------------
+           NEW: CHECKOUT FROM GITHUB
+        --------------------------- */
+        stage('Checkout Code') {
+            steps {
+                echo "📥 Pulling latest code from GitHub..."
+                checkout scm
+                sh "ls -la"
+            }
+        }
+
         stage('Pre-clean Old Containers') {
             steps {
                 script {
@@ -51,6 +62,7 @@ pipeline {
 
                         sh """
                             docker run -d --name "${containerName}" \
+                              -v ${WORKSPACE}:/workspace \
                               -e "GMAIL_USER=${GMAIL_USER}" \
                               -e "GMAIL_PASS=${GMAIL_PASS}" \
                               -e "AWS_REGION=${AWS_REGION}" \
