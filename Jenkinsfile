@@ -46,6 +46,7 @@ pipeline {
 
         /* ---------------------------------
            RUN TESTS USING GITHUB WORKSPACE
+           (docker cp FIX for docker volume)
         ---------------------------------- */
         stage('Run Playwright Tests in Docker') {
             steps {
@@ -64,8 +65,8 @@ pipeline {
                         echo "🚀 Running Playwright test suite: ${params.TEST_SUITE}"
 
                         sh """
-                            docker run -d --name "${containerName}" \
-                              -v ${WORKSPACE}:/workspace \
+                            # 1️⃣ Create container but DON'T run it yet
+                            docker create --name "${containerName}" \
                               -e "GMAIL_USER=${GMAIL_USER}" \
                               -e "GMAIL_PASS=${GMAIL_PASS}" \
                               -e "AWS_REGION=${AWS_REGION}" \
@@ -73,11 +74,16 @@ pipeline {
                               -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
                               -e "S3_BUCKET=${S3_BUCKET}" \
                               -e "TEST_SUITE=${params.TEST_SUITE}" \
-                              "${IMAGE_NAME}:latest" \
-                              /bin/bash -c "chmod +x /workspace/run_tests.sh && /workspace/run_tests.sh"
+                              "${IMAGE_NAME}:latest"
+
+                            # 2️⃣ Copy all GitHub code into the container
+                            docker cp ${WORKSPACE}/. "${containerName}":/workspace
+
+                            # 3️⃣ Start the container (run tests)
+                            docker start "${containerName}"
                         """
 
-                        echo "✅ Container '${containerName}' started successfully."
+                        echo "✅ Container '${containerName}' started with workspace copied."
                     }
                 }
             }
