@@ -58,7 +58,7 @@ pipeline {
                         echo "🚀 Running Playwright test suite: ${params.TEST_SUITE}"
 
                         sh """
-                            # 1️⃣ Create container but DON'T start it
+                            # 1️⃣ Create container but DO NOT run yet
                             docker create --name "${containerName}" \
                               -e "GMAIL_USER=${GMAIL_USER}" \
                               -e "GMAIL_PASS=${GMAIL_PASS}" \
@@ -69,14 +69,17 @@ pipeline {
                               -e "TEST_SUITE=${params.TEST_SUITE}" \
                               "${IMAGE_NAME}:latest"
 
-                            # 2️⃣ Copy entire GitHub workspace into container
+                            # 2️⃣ Copy entire Jenkins workspace to container
                             docker cp "${WORKSPACE}/." "${containerName}:/workspace"
 
-                            # 3️⃣ Start container to run tests
+                            # 3️⃣ Fix permissions for run_tests.sh
+                            docker exec "${containerName}" chmod +x /workspace/run_tests.sh
+
+                            # 4️⃣ Start container (executes run_tests.sh automatically)
                             docker start "${containerName}"
                         """
 
-                        echo "✅ Container '${containerName}' started with workspace copied."
+                        echo "✅ Playwright container '${containerName}' started with fixed permissions."
                     }
                 }
             }
