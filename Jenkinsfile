@@ -23,9 +23,9 @@ pipeline {
 
     stages {
 
-        /* --------------------------
-           NEW: CHECKOUT FROM GITHUB
-        --------------------------- */
+        /* -------------------------
+           CHECKOUT COMPLETE REPO
+        -------------------------- */
         stage('Checkout Code') {
             steps {
                 echo "📥 Pulling latest code from GitHub..."
@@ -44,6 +44,9 @@ pipeline {
             }
         }
 
+        /* ---------------------------------
+           RUN TESTS USING GITHUB WORKSPACE
+        ---------------------------------- */
         stage('Run Playwright Tests in Docker') {
             steps {
                 script {
@@ -70,7 +73,8 @@ pipeline {
                               -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
                               -e "S3_BUCKET=${S3_BUCKET}" \
                               -e "TEST_SUITE=${params.TEST_SUITE}" \
-                              "${IMAGE_NAME}:latest"
+                              "${IMAGE_NAME}:latest" \
+                              /bin/bash -c "chmod +x /workspace/run_tests.sh && /workspace/run_tests.sh"
                         """
 
                         echo "✅ Container '${containerName}' started successfully."
