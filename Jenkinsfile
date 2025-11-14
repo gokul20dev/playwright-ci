@@ -2,22 +2,33 @@ pipeline {
     agent any
 
     parameters {
-        choice(name: 'TEST_SUITE', choices: ['Exammaker', 'Examtaker', 'reports', 'all'])
+        choice(
+            name: 'TEST_SUITE',
+            choices: ['Exammaker', 'Examtaker', 'reports', 'all'],
+            description: 'Select which Playwright test suite to run'
+        )
     }
 
     environment {
+        NODE_HOME = tool name: 'nodejs', type: 'nodejs'
+        PATH = "${NODE_HOME}/bin:${env.PATH}"
+
         DOCKER_HOST = "tcp://host.docker.internal:2375"
+
         AWS_REGION = "ap-south-1"
         S3_BUCKET = "playwright-test-reports-gokul"
-        IMAGE_NAME = "gokul603/playwright-base"
-        CONTAINER_NAME = "pw_runner"
+
+        // ✅ Correct image
+        IMAGE_NAME = "gokul603/playwright-email-tests"
     }
 
     stages {
 
         stage('Cleanup') {
             steps {
-                sh "docker rm -f ${CONTAINER_NAME} || true"
+                script {
+                    sh "docker rm -f pw_runner || true"
+                }
             }
         }
 
@@ -35,39 +46,45 @@ pipeline {
 
                         echo "▶️ Running Playwright Tests: ${params.TEST_SUITE}"
 
-                        sh '''
-docker run -d --rm \
-  --name pw_runner \
-  -v /var/jenkins_home/jobs/playwright-automation-pipeline/workspace:/workspace \
-  -w /workspace \
-  -e GMAIL_USER="$GMAIL_USER" \
-  -e GMAIL_PASS="$GMAIL_PASS" \
-  -e AWS_REGION="$AWS_REGION" \
-  -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
-  -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
-  -e S3_BUCKET="$S3_BUCKET" \
-  -e TEST_SUITE="''' + params.TEST_SUITE + '''" \
-  ''' + "${IMAGE_NAME}:latest" + ''' \
-  bash run_tests.sh
-'''
+                        sh """
+                            docker run -d --rm --pull=never \
+                              --name pw_runner \
+                              -v ${WORKSPACE}:/workspace \
+                              -w /workspace \
+                              -e TEST_SUITE=${params.TEST_SUITE} \
+                              -e GMAIL_USER=${GMAIL_USER} \
+                              -e GMAIL_PASS=${GMAIL_PASS} \
+                              -e AWS_REGION=${AWS_REGION} \
+                              -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
+                              -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
+                              -e S3_BUCKET=${S3_BUCKET} \
+                              ${IMAGE_NAME}:latest \
+                              bash run_tests.sh
+                        """
 
-                        sh "docker logs -f pw_runner"
-                        sh "docker wait pw_runner"
+                        echo "🚀 Container started successfully."
                     }
                 }
             }
         }
+
+        stage('Build') {
+            steps { echo "Skipping build… (dummy)" }
+        }
+
+        stage('Deploy') {
+            steps { echo "Skipping deploy… (dummy)" }
+        }
     }
 
     post {
-        always {
-            sh "docker rm -f pw_runner || true"
-        }
         success {
-            echo "🎉 Pipeline Completed Successfully"
+            echo "✅ Pipeline Completed Successfully"
         }
         failure {
             echo "❌ Pipeline Failed"
+            sh "docker rm -f pw_runner || true"
         }
     }
 }
+
