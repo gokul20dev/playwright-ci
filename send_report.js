@@ -21,34 +21,30 @@ const duration = process.env.TEST_DURATION || "-";
 // ---------------------------------------------------------------
 // 📊 STEP 1 — Extract REAL test results from Playwright JSON
 // ---------------------------------------------------------------
-const resultsJsonPath = "results.json";
+
+// [UPDATED PATH] – JSON file is inside playwright-report/
+const resultsJsonPath = path.resolve("playwright-report/results.json");
+
+// Default values
 let passed = 0;
 let failed = 0;
+let skipped = 0;
 let total = 0;
 
 try {
   const resultsRaw = fs.readFileSync(resultsJsonPath, "utf8");
   const results = JSON.parse(resultsRaw);
 
-  function walk(n) {
-    if (!n || typeof n !== "object") return;
+  // Stats are available directly
+  passed = results?.stats?.expected ?? 0;
+  failed = results?.stats?.unexpected ?? 0;
+  skipped = results?.stats?.skipped ?? 0;
+  total = results?.stats?.total ?? passed + failed;
 
-    if ("ok" in n && (n.title || n.name || n.fullTitle)) {
-      total++;
-      if (n.ok) passed++;
-      else failed++;
-      return;
-    }
-
-    if (Array.isArray(n)) n.forEach(walk);
-    else Object.values(n).forEach(walk);
-  }
-
-  walk(results);
-  console.log("📊 Test Summary:", { passed, failed, total });
+  console.log("📊 Test Summary:", { passed, failed, skipped, total });
 
 } catch (err) {
-  console.error("⚠️ Could not read results.json:", err.message);
+  console.error("⚠️ Could not read JSON results:", err.message);
 }
 
 // ---------------------------------------------------------------
@@ -72,7 +68,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // ---------------------------------------------------------------
-// 🎨 STEP 4 — Build Email Body (Black Title + Reduced Box Size)
+// 🎨 STEP 4 — Build Email Body with NEW Test Summary Box
 // ---------------------------------------------------------------
 let emailBody = `
   <div style="font-family: Arial; color:#222; background:#eef3fc; padding:14px;">
@@ -122,6 +118,27 @@ let emailBody = `
         </tr>
 
       </table>
+
+      <!-- ========================================================= -->
+      <!-- [ADDED] 📊 TEST SUMMARY BOX -->
+      <!-- ========================================================= -->
+      <div style="
+        margin-top:14px;
+        background:#f4f6ff;
+        padding:10px 12px;
+        border-left:4px solid #1976d2;
+        font-size:13px;
+        border-radius:4px;
+      ">
+        <b style="font-size:14px;">📊 Test Summary</b>
+        <div style="margin-top:6px; line-height:1.5;">
+          ✔ <b style="color:#0c7b16;">Passed:</b> ${passed}<br>
+          ❌ <b style="color:#c62828;">Failed:</b> ${failed}<br>
+          ➖ <b style="color:#444;">Skipped:</b> ${skipped}<br>
+          📦 <b>Total:</b> ${total}
+        </div>
+      </div>
+      <!-- ========================================================= -->
 `;
 
 // Attachment note
@@ -177,4 +194,3 @@ try {
   console.error("❌ Failed to send email:", err.message);
   process.exit(1);
 }
-
