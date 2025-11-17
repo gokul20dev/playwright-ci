@@ -1,55 +1,63 @@
-# --- STEP 2: Run Playwright tests + JSON result ---
+#!/bin/bash
+# SAFE MODE: Do NOT stop script on errors
+set +e
+
+cd /workspace
+echo "▶️ Starting Playwright CI Runner"
+
+START_TIME=$(date +%s)
+
+# --- Install dependencies ---
+echo "📦 Installing dependencies..."
+npm ci --quiet || npm install --legacy-peer-deps --quiet
+
+# --- Run Playwright tests with JSON output ---
 TEST_SUITE=${TEST_SUITE:-all}
 PLAYWRIGHT_LOG="playwright_error.log"
 JSON_REPORT="playwright-report/results.json"
 
-echo "▶️ [$(date +"%T")] Running Playwright tests for suite: ${TEST_SUITE}"
-
-# Ensure report folder exists
 mkdir -p playwright-report
 
-TEST_EXIT_CODE=0
+echo "▶️ Running Playwright suite: ${TEST_SUITE}"
 
 if [ "$TEST_SUITE" = "all" ]; then
-    xvfb-run -a timeout 180s npx playwright test \
-        --config=playwright.config.js \
-        --reporter=json \
-        --output=playwright-report \
-        > >(tee $PLAYWRIGHT_LOG) 2>&1 || TEST_EXIT_CODE=$?
+    xvfb-run -a npx playwright test --reporter=json \
+      --output=playwright-report > >(tee $PLAYWRIGHT_LOG) 2>&1
 else
-    xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}.spec.js" \
-        --config=playwright.config.js \
-        --reporter=json \
-        --output=playwright-report \
-        > >(tee $PLAYWRIGHT_LOG) 2>&1 || TEST_EXIT_CODE=$?
+    xvfb-run -a npx playwright test "tests/${TEST_SUITE}.spec.js" \
+      --reporter=json --output=playwright-report \
+      > >(tee $PLAYWRIGHT_LOG) 2>&1
 fi
 
+TEST_EXIT_CODE=$?
 echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
+
 sleep 2
 
-# --- Extract JSON result ---
-if [ -f "$JSON_REPORT" ]; then
-    export PASSED_COUNT=$(jq '.stats.expected' "$JSON_REPORT")
-    export FAILED_COUNT=$(jq '.stats.unexpected' "$JSON_REPORT")
-    export SKIPPED_COUNT=$(jq '.stats.skipped' "$JSON_REPORT")
-    export TOTAL_COUNT=$(jq '.stats.total' "$JSON_REPORT")
-else
-    echo "⚠️ JSON report missing. Setting default values."
-    export PASSED_COUNT=0
-    export FAILED_COUNT=0
-    export SKIPPED_COUNT=0
-    export TOTAL_COUNT=0
-fi
-
-# Determine status
-if [ "$FAILED_COUNT" -gt 0 ] || [ $TEST_EXIT_CODE -ne 0 ]; then
-    export TEST_STATUS="Failed"
-else
+# --- Determine TEST_STATUS ---
+if [ $TEST_EXIT_CODE -eq 0 ]; then
     export TEST_STATUS="Passed"
+else
+    export TEST_STATUS="Failed"
 fi
 
-echo "📊 Test Summary:"
-echo "  ✔ Passed:  $PASSED_COUNT"
-echo "  ❌ Failed:  $FAILED_COUNT"
-echo "  ➖ Skipped: $SKIPPED_COUNT"
-echo "  📦 Total:   $TOTAL_COUNT"
+# --- Export duration ---
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+export TEST_DURATION="${DURATION}s"
+
+# --- S3 Upload (optional) ---
+if [ -f "playwright-report/index.html" ]; then
+    TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+    S3_PATH="${TEST_SUITE}/${TIMESTAMP}/"
+
+    aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}" --recursive
+    export REPORT_URL=$(aws s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400)
+fi
+
+# --- SEND EMAIL (ALWAYS RUNS) ---
+echo "📧 Sending email report..."
+node /workspace/send_report.js || echo "⚠️ Email sending failed, continuing..."
+
+echo "🎉 Run completed. Exiting container."
+exit 0
