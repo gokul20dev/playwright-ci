@@ -20,16 +20,24 @@ else
 fi
 echo "✅ [$(date +"%T")] Dependencies installed."
 
-# --- STEP 2: Run Playwright tests ---
+# --- STEP 2: Run Playwright tests with real exit code ---
 TEST_SUITE=${TEST_SUITE:-all}
 PLAYWRIGHT_LOG="playwright_error.log"
+
 echo "▶️ [$(date +"%T")] Running Playwright tests for suite: ${TEST_SUITE}"
 
+# Run tests WITHOUT swallowing the exit code
+TEST_EXIT_CODE=0
+
 if [ "$TEST_SUITE" = "all" ]; then
-    xvfb-run -a timeout 180s npx playwright test --config=playwright.config.js > >(tee $PLAYWRIGHT_LOG) 2>&1 || true
+    xvfb-run -a timeout 180s npx playwright test --config=playwright.config.js \
+        > >(tee $PLAYWRIGHT_LOG) 2>&1 || TEST_EXIT_CODE=$?
 else
-    xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}.spec.js" --config=playwright.config.js > >(tee $PLAYWRIGHT_LOG) 2>&1 || true
+    xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}.spec.js" --config=playwright.config.js \
+        > >(tee $PLAYWRIGHT_LOG) 2>&1 || TEST_EXIT_CODE=$?
 fi
+
+echo "📌 Real Playwright Exit Code = $TEST_EXIT_CODE"
 
 echo "🕒 [$(date +"%T")] Waiting 4 seconds for report finalization..."
 sleep 4
@@ -71,14 +79,16 @@ else
     } > playwright-report/index.html
 fi
 
-# --- STEP 5: Determine test status ---
-if grep -qi "failed" "$PLAYWRIGHT_LOG"; then
+# --- STEP 5: Determine test status using EXIT CODE ---
+if [ $TEST_EXIT_CODE -ne 0 ]; then
     export TEST_STATUS="Failed"
     export TEST_SUBJECT="Playwright Tests Failed: ${TEST_SUITE}"
 else
     export TEST_STATUS="Passed"
     export TEST_SUBJECT="Playwright Tests Passed: ${TEST_SUITE}"
 fi
+
+echo "📌 Final Test Status = $TEST_STATUS"
 
 # --- STEP 6: Upload to AWS S3 ---
 if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ] && [ -f "playwright-report/index.html" ]; then
@@ -87,42 +97,32 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ] && [ -f "playwright-repor
 
     echo "☁️ [$(date +"%T")] Uploading report to S3: s3://${S3_BUCKET}/${S3_PATH}"
 
-    if [ ! -s "playwright-report/index.html" ]; then
-        echo "⚠️ Report seems empty — waiting 5 more seconds..."
-        sleep 5
-    fi
+    aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}" --recursive || true
 
-    if aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}" --recursive; then
-        echo "🌐 [$(date +"%T")] Report uploaded successfully!"
-
-        if aws s3 ls "s3://${S3_BUCKET}/${S3_PATH}index.html" >/dev/null; then
-            export REPORT_URL=$(aws s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400)
-            echo "🔗 Report URL (24h): ${REPORT_URL}"
-        else
-            echo "❌ index.html missing in S3."
-            export REPORT_URL=""
-        fi
+    if aws s3 ls "s3://${S3_BUCKET}/${S3_PATH}index.html" >/dev/null; then
+        export REPORT_URL=$(aws s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400)
+        echo "🔗 Report URL (24h): ${REPORT_URL}"
     else
-        echo "❌ [$(date +"%T")] Failed to upload report."
+        echo "❌ index.html missing in S3."
         export REPORT_URL=""
     fi
 else
-    echo "⚠️ [$(date +"%T")] Skipping S3 upload — missing values or report file."
+    echo "⚠️ Skipping S3 upload — missing variables."
     export REPORT_URL=""
 fi
 
 # --- STEP 7: Send Email Report ---
-echo "📧 [$(date +"%T")] Sending report email..."
+echo "📧 Sending report email..."
 export GMAIL_USER=${GMAIL_USER}
 export GMAIL_PASS=${GMAIL_PASS}
 
 node send_report.js || echo "⚠️ Email sending failed. Continuing..."
 
 # --- STEP 8: Cleanup ---
-echo "🧹 [$(date +"%T")] Cleaning up Playwright processes..."
+echo "🧹 Cleaning up Playwright processes..."
 pkill -f "playwright" || true
 
-echo "✅ [$(date +"%T")] Test execution finished."
+echo "✅ Test execution finished."
 echo "🧾 Container exiting gracefully..."
-exit 0
 
+exit $TEST_EXIT_CODE
