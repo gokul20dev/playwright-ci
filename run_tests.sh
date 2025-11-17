@@ -80,7 +80,6 @@ END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 export TEST_DURATION="${DURATION}s"
 
-
 ############################################
 # 6️⃣ Upload to S3
 ############################################
@@ -118,11 +117,14 @@ node send_report.js || echo "⚠️ Email sending failed"
 echo "🧹 Killing Playwright background processes..."
 pkill -f "playwright" || true
 
+############################################
+# 🔥 NEW: AUTO-STOP CONTAINER (APPLIED HERE)
+############################################
 echo "🛑 Stopping container automatically..."
 CONTAINER_ID=$(basename "$(cat /proc/1/cpuset)")
 docker stop "$CONTAINER_ID" || true
 
 echo "✅ Test execution finished."
 
-# Pipeline should never fail
+# Jenkins pipeline must NOT fail
 exit 0
