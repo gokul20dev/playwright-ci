@@ -89,10 +89,7 @@ pipeline {
                         echo "🧪 Running Playwright tests (ONE TIME only)..."
 
                         // ⭐ FIX: Run tests once, then stop container
-                        sh """
-                            docker exec -d ${containerName} bash /workspace/run_tests.sh
-                            docker stop ${containerName}
-                        """
+                        sh "docker exec -d ${containerName} bash /workspace/run_tests.sh"
 
                         echo "✔ Test execution finished — container stopped."
                     }
