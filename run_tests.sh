@@ -42,18 +42,16 @@ if [ "$TEST_SUITE" = "all" ]; then
         --config=playwright.config.ts \
         --reporter=json,html \
         --output=playwright-report \
-        > >(tee "$JSON_OUTPUT") 2>&1 || TEST_EXIT_CODE=$?
+        | tee "$JSON_OUTPUT" || TEST_EXIT_CODE=$?
 else
     xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}.spec.js" \
         --config=playwright.config.ts \
         --reporter=json,html \
         --output=playwright-report \
-        > >(tee "$JSON_OUTPUT") 2>&1 || TEST_EXIT_CODE=$?
+        | tee "$JSON_OUTPUT" || TEST_EXIT_CODE=$?
 fi
 
 echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
-
-sleep 2
 
 ############################################
 # 3️⃣ Ensure JSON exists
@@ -64,9 +62,8 @@ if [ ! -s "$JSON_OUTPUT" ]; then
 fi
 
 ############################################
-# 4️⃣ DO NOT RUN show-report (hangs forever)
+# 4️⃣ DO NOT RUN show-report (hangs CI)
 ############################################
-# ❌ npx playwright show-report   <-- NEVER USE IN CI
 echo "🎨 HTML report generated safely."
 
 ############################################
@@ -82,6 +79,7 @@ export TEST_STATUS
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 export TEST_DURATION="${DURATION}s"
+
 
 ############################################
 # 6️⃣ Upload to S3
@@ -119,6 +117,10 @@ node send_report.js || echo "⚠️ Email sending failed"
 ############################################
 echo "🧹 Killing Playwright background processes..."
 pkill -f "playwright" || true
+
+echo "🛑 Stopping container automatically..."
+CONTAINER_ID=$(basename "$(cat /proc/1/cpuset)")
+docker stop "$CONTAINER_ID" || true
 
 echo "✅ Test execution finished."
 
