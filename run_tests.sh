@@ -3,97 +3,94 @@ set -euo pipefail
 trap 'echo "❌ Error occurred on line $LINENO"; exit 1"' ERR
 
 cd /workspace
-echo "▶️ [$(date +"%T")] Starting Playwright CI Test Runner..."
+echo "▶️ Starting Playwright CI Test Runner"
 echo "-----------------------------------------------"
 
 START_TIME=$(date +%s)
 
 ############################################
-# 0️⃣ CLEAN OLD REPORT (IMPORTANT FIX)
+# 0️⃣ CLEAN OLD REPORT
 ############################################
-echo "🧹 Cleaning old Playwright report..."
+echo "🧹 Removing old playwright-report..."
 rm -rf playwright-report
 mkdir -p playwright-report
 
 ############################################
-# 1️⃣ Install dependencies
+# 1️⃣ INSTALL DEPENDENCIES
 ############################################
-echo "📦 [$(date +"%T")] Installing dependencies..."
+echo "📦 Installing dependencies..."
+
 if [ -f "package-lock.json" ]; then
-    npm ci --quiet || {
-        echo "⚠️ npm ci failed — falling back to npm install"
-        npm install --legacy-peer-deps --quiet
-    }
+    npm ci --quiet || npm install --legacy-peer-deps --quiet
 else
     npm install --quiet
 fi
-echo "✅ [$(date +"%T")] Dependencies installed."
+
+echo "✅ Dependencies installed."
 
 ############################################
-# 2️⃣ Run Playwright Tests – generate JSON + HTML
+# 2️⃣ RUN PLAYWRIGHT TESTS (CORRECT JSON SAVE)
 ############################################
 TEST_SUITE=${TEST_SUITE:-all}
 TEST_EXIT_CODE=0
 
-echo "▶️ [$(date +"%T")] Running Playwright tests for suite: ${TEST_SUITE}"
+echo "▶️ Running suite: ${TEST_SUITE}"
 
-JSON_OUTPUT="playwright-report/results.json"
+JSON_FILE="playwright-report/results.json"
 
 if [ "$TEST_SUITE" = "all" ]; then
     xvfb-run -a timeout 180s npx playwright test \
         --config=playwright.config.ts \
         --reporter=json,html \
         --output=playwright-report \
-        > >(tee "$JSON_OUTPUT") 2>&1 || TEST_EXIT_CODE=$?
+        --reporter=json="${JSON_FILE}" \
+        || TEST_EXIT_CODE=$?
 else
     xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}.spec.js" \
         --config=playwright.config.ts \
         --reporter=json,html \
         --output=playwright-report \
-        > >(tee "$JSON_OUTPUT") 2>&1 || TEST_EXIT_CODE=$?
+        --reporter=json="${JSON_FILE}" \
+        || TEST_EXIT_CODE=$?
 fi
 
-echo "📌 Real Playwright Exit Code = $TEST_EXIT_CODE"
+echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
 
-echo "🕒 Waiting 4 seconds..."
-sleep 4
-
-END_TIME=$(date +%s)
-DURATION=$((END_TIME - START_TIME))
-export TEST_DURATION="${DURATION}s"
+sleep 3
 
 ############################################
-# 3️⃣ Ensure JSON Exists (CRITICAL FIX)
+# 3️⃣ FIX MISSING JSON
 ############################################
-if [ ! -f "$JSON_OUTPUT" ]; then
-    echo "❌ ERROR — results.json missing. Creating fallback empty JSON..."
-    echo '{"suites":[]}' > "$JSON_OUTPUT"
+if [ ! -s "$JSON_FILE" ]; then
+    echo "⚠️ JSON missing → creating fallback"
+    echo '{"suites":[]}' > "$JSON_FILE"
 fi
 
 ############################################
-# 4️⃣ Generate fresh HTML report (safe)
+# 4️⃣ GENERATE FINAL HTML REPORT
 ############################################
 echo "🎨 Generating final HTML report..."
-npx playwright show-report playwright-report || true
+npx playwright show-report playwright-report >/dev/null 2>&1 || true
 
 ############################################
-# 5️⃣ Test status
+# 5️⃣ SET STATUS
 ############################################
-if [ $TEST_EXIT_CODE -ne 0 ]; then
+if [ "$TEST_EXIT_CODE" != "0" ]; then
     TEST_STATUS="Failed"
 else
     TEST_STATUS="Passed"
 fi
+
 export TEST_STATUS
 
 ############################################
-# 6️⃣ Upload to S3
+# 6️⃣ UPLOAD TO S3
 ############################################
-if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
+if [ -n "${S3_BUCKET:-}" ]; then
     TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
     S3_PATH="${TEST_SUITE}/${TIMESTAMP}/"
 
-    echo "☁️ Uploading report to S3: s3://${S3_BUCKET}/${S3_PATH}"
+    echo "☁️ Uploading to s3://${S3_BUCKET}/${S3_PATH}"
 
     aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}" --recursive || true
 
@@ -101,30 +98,25 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
         REPORT_URL=$(aws s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400)
         export REPORT_URL
         echo "🔗 Report URL: $REPORT_URL"
-    else
-        export REPORT_URL=""
-        echo "❌ index.html missing in S3."
     fi
 else
-    echo "⚠️ Skipping S3 upload — missing AWS vars."
-    export REPORT_URL=""
+    echo "⚠️ Skipping S3 upload."
 fi
 
 ############################################
-# 7️⃣ Email report
+# 7️⃣ SEND EMAIL
 ############################################
-echo "📧 Sending report email..."
-node send_report.js || echo "⚠️ Email sending failed."
+echo "📧 Sending email..."
+node send_report.js || echo "⚠️ Email failed"
 
 ############################################
-# 8️⃣ Cleanup
+# 8️⃣ CLEANUP
 ############################################
-echo "🧹 Cleaning Playwright processes..."
 pkill -f "playwright" || true
 
-echo "✅ Test execution finished."
+echo "✅ Finished."
 
 ###############################################
-#    🔴 ALWAYS EXIT 0 (Pipeline never fails)
+# NEVER FAIL PIPELINE
 ###############################################
 exit 0
