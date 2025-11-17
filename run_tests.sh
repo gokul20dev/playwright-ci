@@ -20,8 +20,12 @@ else
 fi
 echo "✅ [$(date +"%T")] Dependencies installed."
 
-# STEP 2 — Run Playwright tests (with real exit code)
+# STEP 2 — Clean OLD report (IMPORTANT FIX)
+echo "🧹 Cleaning old Playwright report..."
+rm -rf playwright-report
+mkdir -p playwright-report
 
+# STEP 3 — Run Playwright tests (with real exit code)
 TEST_SUITE=${TEST_SUITE:-all}
 PLAYWRIGHT_LOG="playwright_error.log"
 TEST_EXIT_CODE=0
@@ -31,12 +35,14 @@ echo "▶️ [$(date +"%T")] Running Playwright tests for suite: ${TEST_SUITE}"
 if [ "$TEST_SUITE" = "all" ]; then
     xvfb-run -a timeout 180s npx playwright test \
         --config=playwright.config.ts \
-        --reporter=json \
+        --reporter=json,html \
+        --output=playwright-report \
         > >(tee playwright-report/results.json) 2>&1 || TEST_EXIT_CODE=$?
 else
     xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}.spec.js" \
         --config=playwright.config.ts \
-        --reporter=json \
+        --reporter=json,html \
+        --output=playwright-report \
         > >(tee playwright-report/results.json) 2>&1 || TEST_EXIT_CODE=$?
 fi
 
@@ -49,7 +55,7 @@ END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 export TEST_DURATION="${DURATION}s"
 
-# STEP 3 — Detect environment
+# STEP 4 — Detect environment
 echo "🌍 Detecting Environment..."
 if grep -qi "staging" "$PLAYWRIGHT_LOG"; then
     ENVIRONMENT="Staging"
@@ -65,9 +71,9 @@ fi
 export ENVIRONMENT
 echo "🌍 Environment detected: $ENVIRONMENT"
 
-# STEP 4 — Ensure HTML exists
-if [ -d "playwright-report" ] && [ -f "playwright-report/index.html" ]; then
-    echo "✅ [$(date +"%T")] HTML report generated."
+# STEP 5 — Ensure HTML exists
+if [ -f "playwright-report/index.html" ]; then
+    echo "✅ Fresh HTML report generated."
 else
     echo "⚠️ HTML report missing, creating fallback..."
     mkdir -p playwright-report
@@ -81,7 +87,7 @@ else
     } > playwright-report/index.html
 fi
 
-# STEP 5 — Set final status
+# STEP 6 — Set final status
 if [ $TEST_EXIT_CODE -ne 0 ]; then
     TEST_STATUS="Failed"
 else
@@ -90,7 +96,7 @@ fi
 export TEST_STATUS
 echo "📌 Final Test Status = $TEST_STATUS"
 
-# STEP 6 — Upload to S3
+# STEP 7 — Upload to S3
 if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
     TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
     S3_PATH="${TEST_SUITE}/${TIMESTAMP}/"
@@ -112,17 +118,15 @@ else
     export REPORT_URL=""
 fi
 
-# STEP 7 — Send email
+# STEP 8 — Send email
 echo "📧 Sending report email..."
 node send_report.js || echo "⚠️ Email sending failed."
 
-# STEP 8 — Cleanup
+# STEP 9 — Cleanup
 echo "🧹 Cleaning Playwright processes..."
 pkill -f "playwright" || true
 
 echo "✅ Test execution finished."
 
-###############################################
-#    🔴 FINAL CHANGE HERE → ALWAYS EXIT 0     #
-###############################################
+# ALWAYS EXIT SUCCESS FOR JENKINS
 exit 0
