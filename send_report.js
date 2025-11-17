@@ -19,7 +19,7 @@ const pipelineName = process.env.PIPELINE_NAME || "QA Automation Pipeline";
 const duration = process.env.TEST_DURATION || "-";
 
 // ---------------------------------------------------------------
-// 📊 STEP 1 — Extract REAL test results from Playwright JSON
+// 📊 STEP 1 — Accurate Test Count from Playwright JSON
 // ---------------------------------------------------------------
 const resultsJsonPath = "playwright-report/results.json";
 let passed = 0;
@@ -30,22 +30,29 @@ try {
   const resultsRaw = fs.readFileSync(resultsJsonPath, "utf8");
   const results = JSON.parse(resultsRaw);
 
-  function walk(n) {
-    if (!n || typeof n !== "object") return;
+  function extractTests(obj) {
+    if (!obj) return;
 
-    if ("ok" in n && (n.title || n.name || n.fullTitle)) {
-      total++;
-      if (n.ok) passed++;
-      else failed++;
-      return;
+    // Handle tests array
+    if (obj.tests && Array.isArray(obj.tests)) {
+      obj.tests.forEach(t => {
+        total++;
+
+        const hasFailure = t.results.some(r => r.status !== "passed");
+
+        if (hasFailure) failed++;
+        else passed++;
+      });
     }
 
-    if (Array.isArray(n)) n.forEach(walk);
-    else Object.values(n).forEach(walk);
+    // Traverse deeper
+    if (obj.suites) obj.suites.forEach(extractTests);
+    if (obj.specs) obj.specs.forEach(extractTests);
   }
 
-  walk(results);
-  console.log("📊 Test Summary:", { passed, failed, total });
+  extractTests(results);
+
+  console.log("📊 Accurate Test Summary:", { passed, failed, total });
 
 } catch (err) {
   console.error("⚠️ Could not read results.json:", err.message);
@@ -72,7 +79,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // ---------------------------------------------------------------
-// 🎨 STEP 4 — Build Email Body (no invalid backticks)
+// 🎨 STEP 4 — Build Email Body
 // ---------------------------------------------------------------
 let emailBody = `
 <div style="font-family: Arial; color:#222; background:#eef3fc; padding:14px;">
