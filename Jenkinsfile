@@ -68,7 +68,9 @@ pipeline {
                         echo "🚀 Creating container for test suite: ${params.TEST_SUITE}"
 
                         sh """
-                            docker create --name '${containerName}' \
+                            docker create \
+                              -v /var/run/docker.sock:/var/run/docker.sock \
+                              --name '${containerName}' \
                               -e GMAIL_USER='${GMAIL_USER}' \
                               -e GMAIL_PASS='${GMAIL_PASS}' \
                               -e AWS_REGION='${AWS_REGION}' \
