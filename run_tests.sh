@@ -35,7 +35,7 @@ if [ "$TEST_SUITE" = "all" ]; then
         > >(tee playwright-report/results.json) 2>&1 || TEST_EXIT_CODE=$?
 else
     xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}.spec.js" \
-        --config=playwright.config.tjs \
+        --config=playwright.config.ts \
         --reporter=json \
         > >(tee playwright-report/results.json) 2>&1 || TEST_EXIT_CODE=$?
 fi
