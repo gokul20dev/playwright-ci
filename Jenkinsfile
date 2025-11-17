@@ -48,7 +48,7 @@ pipeline {
         }
 
         /* ────────────────────────────────
-           🧪 2. Run Playwright Tests (NON-BLOCKING)
+           🧪 2. Run Playwright Tests (FIXED)
         ───────────────────────────────── */
         stage('Run Playwright Tests') {
             steps {
@@ -67,7 +67,6 @@ pipeline {
 
                         echo "🚀 Creating container for test suite: ${params.TEST_SUITE}"
 
-                        // ⭐ SAFE container create (OPTION-B)
                         sh """
                             docker create --name '${containerName}' \
                               -e GMAIL_USER='${GMAIL_USER}' \
@@ -87,20 +86,15 @@ pipeline {
                         sh "docker start ${containerName}"
                         sh "docker exec ${containerName} chmod +x /workspace/run_tests.sh"
 
-                        echo "🧪 Launching Playwright tests IN BACKGROUND..."
+                        echo "🧪 Running Playwright tests (ONE TIME only)..."
 
-                        // ⭐ NON-BLOCKING execution + AUTO-STOP container
+                        // ⭐ FIX: Run tests once, then stop container
                         sh """
-                            docker exec -d ${containerName} bash /workspace/run_tests.sh
-
-                            # Background watcher to STOP container after tests finish
-                            (
-                                docker exec ${containerName} bash /workspace/run_tests.sh
-                                docker stop ${containerName}
-                            ) &
+                            docker exec ${containerName} bash /workspace/run_tests.sh
+                            docker stop ${containerName}
                         """
 
-                        echo "➡️ Jenkins continues immediately (tests running in background)"
+                        echo "✔ Test execution finished — container stopped."
                     }
                 }
             }
@@ -127,12 +121,9 @@ pipeline {
         }
     }
 
-    /* ────────────────────────────────
-       🧾 Post Actions
-    ───────────────────────────────── */
     post {
         success {
-            echo "✅ Pipeline finished successfully — tests running in background."
+            echo "✅ Pipeline finished successfully."
         }
         failure {
             echo "❌ Pipeline failed — check logs."
