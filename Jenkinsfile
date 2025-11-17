@@ -48,7 +48,7 @@ pipeline {
         }
 
         /* ────────────────────────────────
-           🧪 2. Run Playwright Tests (FIXED)
+           🧪 2. Run Playwright Tests
         ───────────────────────────────── */
         stage('Run Playwright Tests') {
             steps {
@@ -81,19 +81,29 @@ pipeline {
                               '${IMAGE_NAME}:latest'
                         """
 
-                        echo "📦 Copying GitHub code into container..."
-                        sh "docker cp ${WORKSPACE}/. ${containerName}:/workspace"
+                        echo "📦 Syncing changed GitHub files into container..."
+                        sh """
+                            docker cp ${WORKSPACE}/tests ${containerName}:/workspace/
+                            docker cp ${WORKSPACE}/playwright.config.ts ${containerName}:/workspace/
+                            docker cp ${WORKSPACE}/send_report.js ${containerName}:/workspace/
+                            docker cp ${WORKSPACE}/run_tests.sh ${containerName}:/workspace/
+                            docker cp ${WORKSPACE}/package.json ${containerName}:/workspace/
+                            docker cp ${WORKSPACE}/package-lock.json ${containerName}:/workspace/
+                        """
 
-                        echo "🔧 Starting container and fixing permissions..."
+                        echo "📦 Installing updated dependencies..."
+                        sh "docker exec ${containerName} npm install --quiet || true"
+
+                        echo "🔧 Starting container..."
                         sh "docker start ${containerName}"
+
+                        echo "🔧 Ensuring permissions..."
                         sh "docker exec ${containerName} chmod +x /workspace/run_tests.sh"
 
-                        echo "🧪 Running Playwright tests (ONE TIME only)..."
-
-                        // ⭐ FIX: Run tests once, then stop container
+                        echo "🧪 Running Playwright tests in background..."
                         sh "docker exec -d ${containerName} bash /workspace/run_tests.sh"
 
-                        echo "✔ Test execution finished — container stopped."
+                        echo "✔ Test execution started — container will auto-stop when done."
                     }
                 }
             }
