@@ -117,7 +117,12 @@ node send_report.js || echo "⚠️ Email sending failed"
 echo "🧹 Killing Playwright background processes..."
 pkill -f "playwright" || true
 
-echo "✅ Test execution finished."
+echo "🛑 Auto-stopping this container..."
+CONTAINER_ID=$(basename "$(cat /proc/1/cpuset)")
 
-# Jenkins pipeline must NOT fail
+# Stop the container using Docker socket (works even inside container!)
+curl --unix-socket /var/run/docker.sock -X POST "http:/v1.41/containers/${CONTAINER_ID}/stop" || true
+
+echo "✅ Test execution finished."
 exit 0
+
