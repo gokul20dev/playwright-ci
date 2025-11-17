@@ -90,7 +90,7 @@ pipeline {
 
                         // ⭐ FIX: Run tests once, then stop container
                         sh """
-                            docker exec ${containerName} bash /workspace/run_tests.sh
+                            docker exec -d ${containerName} bash /workspace/run_tests.sh
                             docker stop ${containerName}
                         """
 
