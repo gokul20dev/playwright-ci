@@ -52,7 +52,7 @@ let emailBody = `
       <a href="${reportUrl}" target="_blank"
         style="background:#1976d2; color:#fff; padding:10px 14px; border-radius:6px;
                text-decoration:none; font-weight:bold;">
-        View Full HTML Report
+        View Full HML Report
       </a>
     </p>` : ""}
 
