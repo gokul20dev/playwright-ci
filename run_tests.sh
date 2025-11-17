@@ -30,12 +30,12 @@ echo "▶️ [$(date +"%T")] Running Playwright tests for suite: ${TEST_SUITE}"
 
 if [ "$TEST_SUITE" = "all" ]; then
     xvfb-run -a timeout 180s npx playwright test \
-        --config=playwright.config.cjs \
+        --config=playwright.config.ts \
         --reporter=json \
         > >(tee playwright-report/results.json) 2>&1 || TEST_EXIT_CODE=$?
 else
     xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}.spec.js" \
-        --config=playwright.config.cjs \
+        --config=playwright.config.tjs \
         --reporter=json \
         > >(tee playwright-report/results.json) 2>&1 || TEST_EXIT_CODE=$?
 fi
