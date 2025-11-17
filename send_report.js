@@ -19,47 +19,7 @@ const pipelineName = process.env.PIPELINE_NAME || "QA Automation Pipeline";
 const duration = process.env.TEST_DURATION || "-";
 
 // ------------------------------------------------------------------
-// 📊 STEP 1 — Correct Playwright test parsing (NEW FIXED VERSION)
-// ------------------------------------------------------------------
-const resultsJsonPath = "playwright-report/results.json";
-
-let passed = 0;
-let failed = 0;
-let total = 0;
-
-function walk(obj) {
-  if (!obj) return;
-
-  // If object contains tests array
-  if (obj.tests && Array.isArray(obj.tests)) {
-    obj.tests.forEach(test => {
-      total++;
-
-      let hasFailure = test.results.some(r => r.status !== "passed");
-      if (hasFailure) failed++;
-      else passed++;
-    });
-  }
-
-  // Recursively walk deeper
-  if (obj.suites) obj.suites.forEach(walk);
-  if (obj.specs) obj.specs.forEach(walk);
-}
-
-try {
-  const raw = fs.readFileSync(resultsJsonPath, "utf8");
-  const json = JSON.parse(raw);
-
-  walk(json);
-
-  console.log("📊 Accurate Test Summary:", { passed, failed, total });
-
-} catch (err) {
-  console.error("⚠️ Could not read results.json:", err.message);
-}
-
-// ------------------------------------------------------------------
-// 📁 STEP 2 — Check if HTML report exists
+// 📁 Check if HTML report exists
 // ------------------------------------------------------------------
 let reportExists = false;
 try {
@@ -71,7 +31,7 @@ try {
 }
 
 // ------------------------------------------------------------------
-// ✉️ STEP 3 — SMTP Config
+// ✉️ SMTP Config
 // ------------------------------------------------------------------
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -79,7 +39,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // ------------------------------------------------------------------
-// ✨ STEP 4 — Email Body
+// ✨ HTML Email Body (NO passed/failed/total)
 // ------------------------------------------------------------------
 let emailBody = `
 <div style="font-family:Arial; background:#eef3fc; padding:14px;">
@@ -92,7 +52,7 @@ let emailBody = `
       <a href="${reportUrl}" target="_blank"
         style="background:#1976d2; color:#fff; padding:10px 14px; border-radius:6px;
                text-decoration:none; font-weight:bold;">
-        View Full HML Report
+        View Full HTML Report
       </a>
     </p>` : ""}
 
@@ -101,34 +61,27 @@ let emailBody = `
     <table style="font-size:12px; width:100%;">
       <tr><td><b>Suite:</b></td><td>${suite}</td></tr>
       <tr><td><b>Status:</b></td>
-          <td style="color:${testStatus === "Passed" ? "#0c7b16" : "#c62828"};">${testStatus}</td></tr>
+          <td style="color:${testStatus === "Passed" ? "#0c7b16" : "#c62828"};">
+            ${testStatus}
+          </td></tr>
       <tr><td><b>Duration:</b></td><td>${duration}</td></tr>
       <tr><td><b>Timestamp:</b></td><td>${new Date().toLocaleString()}</td></tr>
     </table>
 
-    <h3>Test Summary</h3>
-    <ul style="font-size:12px;">
-      <li>✅ Passed: <b>${passed}</b></li>
-      <li>❌ Failed: <b>${failed}</b></li>
-      <li>📦 Total: <b>${total}</b></li>
-    </ul>
-`;
+    <p style="margin-top:10px; font-size:12px;">
+      The detailed Playwright HTML report is attached below.
+    </p>
 
-if (reportExists) {
-  emailBody += `
-    <div style="margin-top:10px; background:#eaf2ff; padding:10px; border-left:4px solid #1976d2;">
-      The Playwright HTML report is attached below for offline viewing.
-    </div>`;
-}
+    <p style="font-size:11px; color:#777; margin-top:20px;">
+      Sent automatically by <b>Playwright CI</b>.
+    </p>
 
-emailBody += `
-    <p style="font-size:11px; color:#777;">Sent automatically by <b>Playwright CI</b>.</p>
   </div>
 </div>
 `;
 
 // ------------------------------------------------------------------
-// 📮 STEP 5 — Mail options
+// 📮 Email Options
 // ------------------------------------------------------------------
 const mailOptions = {
   from: `"Playwright CI" <${user}>`,
@@ -150,11 +103,11 @@ if (reportExists) {
 }
 
 // ------------------------------------------------------------------
-// 🚀 STEP 6 — Send email
+// 🚀 Send Email
 // ------------------------------------------------------------------
 try {
   await transporter.sendMail(mailOptions);
-  console.log("📨 Email sent successfully with accurate counts!");
+  console.log("📨 Email sent successfully!");
 } catch (err) {
   console.error("❌ Failed to send email:", err.message);
   process.exit(1);
