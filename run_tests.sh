@@ -1,5 +1,3 @@
-run.sh
-
 #!/bin/bash
 set -euo pipefail
 trap 'echo "❌ Error occurred on line $LINENO"; exit 1' ERR
