@@ -23,9 +23,6 @@ pipeline {
 
     stages {
 
-        /* ────────────────────────────────
-           🔄 0. Cleanup Old Containers
-        ───────────────────────────────── */
         stage('Pre-clean Old Containers') {
             steps {
                 script {
@@ -36,9 +33,6 @@ pipeline {
             }
         }
 
-        /* ────────────────────────────────
-           📥 1. Checkout Code
-        ───────────────────────────────── */
         stage('Checkout Code') {
             steps {
                 echo "📥 Pulling latest code from GitHub..."
@@ -47,9 +41,6 @@ pipeline {
             }
         }
 
-        /* ────────────────────────────────
-           🧪 2. Run Playwright Tests
-        ───────────────────────────────── */
         stage('Run Playwright Tests') {
             steps {
                 script {
@@ -104,14 +95,17 @@ pipeline {
                         sh "docker exec -d ${containerName} bash /workspace/run_tests.sh"
 
                         echo "✔ Test execution started — container will auto-stop when done."
+
+                        sleep 10    // Give script time to generate logs (adjust if needed)
+
+                        // ➕ NEW: Fetch logs from inside container
+                        echo "📄 Fetching Playwright container logs..."
+                        sh "docker logs ${containerName} || true"
                     }
                 }
             }
         }
 
-        /* ────────────────────────────────
-           🏗️ 3. Build (Dummy)
-        ───────────────────────────────── */
         stage('Build') {
             steps {
                 echo "🏗️ Dummy build..."
@@ -119,9 +113,6 @@ pipeline {
             }
         }
 
-        /* ────────────────────────────────
-           🚀 4. Deploy (Dummy)
-        ───────────────────────────────── */
         stage('Deploy') {
             steps {
                 echo "🚀 Dummy deploy..."
