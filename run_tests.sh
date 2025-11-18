@@ -90,8 +90,15 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
 
     echo "☁️ Uploading report to S3 → s3://${S3_BUCKET}/${S3_PATH}"
 
-    aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}" --recursive || true
+    # Upload full report folder
+    aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" --recursive || true
 
+    # Force-upload top-level index.html so email button works always
+    if [ -f "playwright-report/index.html" ]; then
+        aws s3 cp playwright-report/index.html "s3://${S3_BUCKET}/${S3_PATH}index.html" || true
+    fi
+
+    # Check for index.html and generate URL
     if aws s3 ls "s3://${S3_BUCKET}/${S3_PATH}index.html" >/dev/null; then
         REPORT_URL=$(aws s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400)
         export REPORT_URL
@@ -100,6 +107,7 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
         export REPORT_URL=""
         echo "❌ index.html missing in S3."
     fi
+
 else
     export REPORT_URL=""
     echo "⚠️ S3 upload skipped"
@@ -120,9 +128,7 @@ pkill -f "playwright" || true
 echo "🛑 Auto-stopping this container..."
 CONTAINER_ID=$(basename "$(cat /proc/1/cpuset)")
 
-# Stop the container using Docker socket (works even inside container!)
 curl --unix-socket /var/run/docker.sock -X POST "http:/v1.41/containers/${CONTAINER_ID}/stop" || true
 
 echo "✅ Test execution finished."
 exit 0
-
