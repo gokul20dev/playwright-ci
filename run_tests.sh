@@ -81,7 +81,7 @@ DURATION=$((END_TIME - START_TIME))
 export TEST_DURATION="${DURATION}s"
 
 ############################################
-# 6️⃣ Upload to S3
+# 6️⃣ Upload to S3 (FIXED LOGIC)
 ############################################
 if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
 
@@ -90,28 +90,56 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
 
     echo "☁️ Uploading report to S3 → s3://${S3_BUCKET}/${S3_PATH}"
 
-    # Upload full report folder
-    aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" --recursive || true
+    ############################################
+    # 🔍 AUTO-DETECT CORRECT HTML REPORT PATH
+    ############################################
+    HTML_FILE=""
 
-    # Force-upload top-level index.html so email button works always
+    # Case 1: Root index.html (Exammaker)
     if [ -f "playwright-report/index.html" ]; then
-        aws s3 cp playwright-report/index.html "s3://${S3_BUCKET}/${S3_PATH}index.html" || true
+        HTML_FILE="playwright-report/index.html"
+
+    # Case 2: Suite folder index.html (Examtaker/reports/all)
+    elif [ -f "playwright-report/${TEST_SUITE}/index.html" ]; then
+        HTML_FILE="playwright-report/${TEST_SUITE}/index.html"
+
+    # Case 3: Playwright may generate under /all/ even when TEST_SUITE != all
+    elif [ -f "playwright-report/all/index.html" ]; then
+        HTML_FILE="playwright-report/all/index.html"
     fi
 
-    # Check for index.html and generate URL
+    ############################################
+    # 📤 Upload correct index.html into root of S3 suite folder
+    ############################################
+    if [ -n "$HTML_FILE" ]; then
+        echo "📤 Uploading HTML report: $HTML_FILE"
+        aws s3 cp "$HTML_FILE" "s3://${S3_BUCKET}/${S3_PATH}index.html" || true
+    else
+        echo "❌ No HTML report found for suite ${TEST_SUITE}"
+    fi
+
+    ############################################
+    # 📤 Upload full report folder
+    ############################################
+    aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" --recursive || true
+
+    ############################################
+    # 🔗 Generate Presigned URL
+    ############################################
     if aws s3 ls "s3://${S3_BUCKET}/${S3_PATH}index.html" >/dev/null; then
         REPORT_URL=$(aws s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400)
         export REPORT_URL
         echo "🔗 Report URL: $REPORT_URL"
     else
-        export REPORT_URL=""
-        echo "❌ index.html missing in S3."
+        REPORT_URL=""
+        echo "❌ index.html missing in S3 → Button will not appear"
     fi
 
 else
     export REPORT_URL=""
     echo "⚠️ S3 upload skipped"
 fi
+
 
 ############################################
 # 7️⃣ Email report
