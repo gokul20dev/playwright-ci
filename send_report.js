@@ -10,8 +10,7 @@ const pass = process.env.GMAIL_PASS;
 const suite = process.env.TEST_SUITE || "all";
 const testStatus = process.env.TEST_STATUS || "Failed";
 
-// S3 / report paths
-const reportPath = path.resolve("playwright-report/index.html");
+// S3 / report URL
 const reportUrl = process.env.REPORT_URL || null;
 
 // Other metadata
@@ -19,15 +18,36 @@ const pipelineName = process.env.PIPELINE_NAME || "QA Automation Pipeline";
 const duration = process.env.TEST_DURATION || "-";
 
 // ------------------------------------------------------------------
-// 📁 Check if HTML report exists
+// ⭐ AUTO-DETECT HTML REPORT FILE (Fix for ALL suites)
 // ------------------------------------------------------------------
+let reportPath = null;
+
+function findReportFile(startPath) {
+  const files = fs.readdirSync(startPath, { withFileTypes: true });
+
+  for (const file of files) {
+    const fullPath = path.join(startPath, file.name);
+
+    if (file.isDirectory()) {
+      const result = findReportFile(fullPath);
+      if (result) return result;
+    }
+
+    if (file.isFile() && file.name === "index.html") {
+      return fullPath;
+    }
+  }
+  return null;
+}
+
+reportPath = findReportFile("playwright-report");
+
 let reportExists = false;
-try {
-  await fs.promises.access(reportPath);
+if (reportPath) {
   reportExists = true;
-  console.log("✅ Found Playwright HTML report:", reportPath);
-} catch {
-  console.warn("⚠️ Report not found:", reportPath);
+  console.log("✅ Auto-detected report:", reportPath);
+} else {
+  console.warn("⚠️ No index.html found in playwright-report folder!");
 }
 
 // ------------------------------------------------------------------
@@ -39,7 +59,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // ------------------------------------------------------------------
-// ✨ HTML Email Body (NO passed/failed/total)
+// ✨ HTML Email Body
 // ------------------------------------------------------------------
 let emailBody = `
 <div style="font-family:Arial; background:#eef3fc; padding:14px;">
@@ -92,7 +112,8 @@ const mailOptions = {
   html: emailBody,
 };
 
-if (reportExists) {
+// Attach the detected HTML file
+if (reportExists && reportPath) {
   mailOptions.attachments = [
     {
       filename: "playwright-report.html",
