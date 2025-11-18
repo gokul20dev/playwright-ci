@@ -53,6 +53,9 @@ fi
 
 echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
 
+echo "📁 DEBUG: Listing playwright-report folder"
+find playwright-report -maxdepth 5 -type f -print
+
 ############################################
 # 3️⃣ Ensure JSON exists
 ############################################
