@@ -58,7 +58,7 @@ echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
 # ⭐ FINAL FIX — RELIABLE HTML DETECTION
 ############################################
 
-# 1️⃣ If suite folder exists: /playwright-report/Exammaker , /Examtaker
+# 1️⃣ If suite-specific folder exists: /playwright-report/Exammaker , /Examtaker
 if [ -d "playwright-report/${TEST_SUITE}" ]; then
     if [ -f "playwright-report/${TEST_SUITE}/index.html" ]; then
         echo "📄 Using suite-specific HTML → playwright-report/${TEST_SUITE}/index.html"
@@ -66,11 +66,13 @@ if [ -d "playwright-report/${TEST_SUITE}" ]; then
     fi
 fi
 
-# 2️⃣ If still missing, find ANY index.html inside all folders
+# 2️⃣ If still missing → find the NEWEST index.html inside all folders
 if [ ! -f "playwright-report/index.html" ]; then
-    REAL_HTML=$(find playwright-report -type f -name "index.html" | head -n 1 || true)
+    REAL_HTML=$(find playwright-report -type f -name "index.html" ! -path "playwright-report/index.html" -printf "%T@ %p\n" \
+        | sort -nr | head -n 1 | awk '{print $2}')
+
     if [ -n "$REAL_HTML" ]; then
-        echo "📄 Auto-detected report at: $REAL_HTML"
+        echo "📄 Latest HTML auto-detected → $REAL_HTML"
         cp "$REAL_HTML" playwright-report/index.html
     fi
 fi
