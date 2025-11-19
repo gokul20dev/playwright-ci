@@ -55,13 +55,22 @@ echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
 
 
 ############################################
-# ⭐ FIX: Ensure index.html always exists
+# ⭐ FIX 1 — Ensure index.html always exists
 ############################################
+# Playwright sometimes generates report.html
 if [ -f "playwright-report/report.html" ]; then
     echo "🔧 Found report.html → renaming to index.html"
     mv playwright-report/report.html playwright-report/index.html
 fi
 
+# If nested folder exists, pick correct index.html
+if [ ! -f "playwright-report/index.html" ]; then
+    NESTED_INDEX=$(find playwright-report -name "index.html" | head -n 1 || true)
+    if [ -n "$NESTED_INDEX" ]; then
+        echo "🔧 Found nested HTML → copying to root"
+        cp "$NESTED_INDEX" playwright-report/index.html
+    fi
+fi
 
 ############################################
 # 3️⃣ Ensure JSON exists
@@ -72,7 +81,7 @@ if [ ! -s "$JSON_OUTPUT" ]; then
 fi
 
 ############################################
-# 4️⃣ DO NOT RUN show-report
+# 4️⃣ Safe report message
 ############################################
 echo "🎨 HTML report generated safely."
 
@@ -100,17 +109,21 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
 
     echo "☁️ Uploading report to S3 → s3://${S3_BUCKET}/${S3_PATH}"
 
-    # Upload HTML file always named index.html
+    # Upload HTML
     if [ -f "playwright-report/index.html" ]; then
-        aws s3 cp "playwright-report/index.html" "s3://${S3_BUCKET}/${S3_PATH}index.html" || true
+        aws s3 cp "playwright-report/index.html" \
+           "s3://${S3_BUCKET}/${S3_PATH}index.html" || true
     fi
 
     # Upload full folder
-    aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" --recursive || true
+    aws s3 cp playwright-report \
+       "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" --recursive || true
 
     # Generate presigned URL
     if aws s3 ls "s3://${S3_BUCKET}/${S3_PATH}index.html" >/dev/null; then
-        REPORT_URL=$(aws.s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400)
+        REPORT_URL=$(aws s3 presign \
+          "s3://${S3_BUCKET}/${S3_PATH}index.html" \
+          --expires-in 86400)
         export REPORT_URL
     else
         REPORT_URL=""
@@ -120,8 +133,16 @@ else
 fi
 
 ############################################
+# ⭐ FIX 2 — ADD DELAY BEFORE SENDING EMAIL
+# Fixes missing report for ALL suite
+############################################
+echo "⏳ Waiting 15 seconds to ensure files are fully written..."
+sleep 15
+
+############################################
 # 7️⃣ Email report
 ############################################
+echo "📧 Sending report email..."
 node send_report.js || echo "⚠️ Email sending failed"
 
 ############################################
@@ -130,6 +151,8 @@ node send_report.js || echo "⚠️ Email sending failed"
 pkill -f "playwright" || true
 
 CONTAINER_ID=$(basename "$(cat /proc/1/cpuset)")
-curl --unix-socket /var/run/docker.sock -X POST "http:/v1.41/containers/${CONTAINER_ID}/stop" || true
+curl --unix-socket /var/run/docker.sock \
+    -X POST "http:/v1.41/containers/${CONTAINER_ID}/stop" || true
 
+echo "✅ Finished."
 exit 0
