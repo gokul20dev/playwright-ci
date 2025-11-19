@@ -53,30 +53,33 @@ fi
 
 echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
 
+
 ############################################
-# ⭐ FIX: Ensure index.html ALWAYS exists
+# ⭐ FINAL FIX — ALWAYS detect REAL HTML report
+# (This is all you needed to fix the ALL suite issue)
 ############################################
 
-# 1) If report.html exists → rename it
-if [ -f "playwright-report/report.html" ]; then
-    echo "🔧 Found report.html → renaming to index.html"
+# Find any index.html that is NOT the root one
+REAL_HTML=$(find playwright-report -type f -name "index.html" ! -path "playwright-report/index.html" | head -n 1)
+
+# If found, copy it to root
+if [ -n "$REAL_HTML" ]; then
+    echo "🔧 Using real Playwright HTML: $REAL_HTML"
+    cp "$REAL_HTML" playwright-report/index.html
+fi
+
+# Still missing? Try report.html
+if [ ! -f "playwright-report/index.html" ] && [ -f "playwright-report/report.html" ]; then
+    echo "🔧 Falling back to report.html"
     mv playwright-report/report.html playwright-report/index.html
 fi
 
-# 2) If index.html missing → find nested versions
+# Still missing? Create dummy placeholder
 if [ ! -f "playwright-report/index.html" ]; then
-    NESTED_INDEX=$(find playwright-report -name "index.html" | head -n 1 || true)
-    if [ -n "$NESTED_INDEX" ]; then
-        echo "🔧 Found nested index.html → copying to root"
-        cp "$NESTED_INDEX" playwright-report/index.html
-    fi
-fi
-
-# 3) If still missing → create dummy index.html so email never fails
-if [ ! -f "playwright-report/index.html" ]; then
-    echo "⚠️ No HTML report → creating placeholder index.html"
+    echo "⚠️ No HTML report → creating placeholder"
     echo "<h2>No HTML report generated</h2>" > playwright-report/index.html
 fi
+
 
 ############################################
 # 3️⃣ Ensure JSON exists
