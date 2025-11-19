@@ -18,7 +18,7 @@ const pipelineName = process.env.PIPELINE_NAME || "QA Automation Pipeline";
 const duration = process.env.TEST_DURATION || "-";
 
 // ------------------------------------------------------------------
-// ⭐ AUTO-DETECT HTML REPORT FILE (Fix for ALL suites)
+// ⭐ AUTO-DETECT HTML REPORT FILE (index.html OR report.html)
 // ------------------------------------------------------------------
 let reportPath = null;
 
@@ -33,7 +33,10 @@ function findReportFile(startPath) {
       if (result) return result;
     }
 
-    if (file.isFile() && file.name === "index.html") {
+    if (
+      file.isFile() &&
+      (file.name === "index.html" || file.name === "report.html")
+    ) {
       return fullPath;
     }
   }
@@ -47,7 +50,7 @@ if (reportPath) {
   reportExists = true;
   console.log("✅ Auto-detected report:", reportPath);
 } else {
-  console.warn("⚠️ No index.html found in playwright-report folder!");
+  console.warn("⚠️ No index.html or report.html found in playwright-report!");
 }
 
 // ------------------------------------------------------------------
@@ -112,7 +115,6 @@ const mailOptions = {
   html: emailBody,
 };
 
-// Attach the detected HTML file
 if (reportExists && reportPath) {
   mailOptions.attachments = [
     {
