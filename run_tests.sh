@@ -54,7 +54,15 @@ fi
 echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
 
 ############################################
-# 🔍 DEBUG — Show generated report structure
+# ⭐ FIX: Ensure report.html is usable
+############################################
+if [ -f "playwright-report/report.html" ]; then
+    echo "🔧 Fixing Playwright output: Renaming report.html → index.html"
+    mv playwright-report/report.html playwright-report/index.html
+fi
+
+############################################
+# DEBUG
 ############################################
 echo "📁 DEBUG: Listing playwright-report folder"
 find playwright-report -maxdepth 5 -type f -print || true
@@ -97,19 +105,19 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
     echo "☁️ Uploading report to S3 → s3://${S3_BUCKET}/${S3_PATH}"
 
     ############################################
-    # ⭐ AUTO-DETECT HTML FILE ANYWHERE INSIDE playwright-report
+    # ⭐ FIX: detect index.html OR report.html
     ############################################
-    HTML_FILE=$(find playwright-report -name "index.html" -type f | head -n 1 || true)
+    HTML_FILE=$(find playwright-report -regex '.*\(index\|report\)\.html$' -type f | head -n 1 || true)
 
     if [ -n "$HTML_FILE" ]; then
         echo "📤 Auto-detected HTML report: $HTML_FILE"
         aws s3 cp "$HTML_FILE" "s3://${S3_BUCKET}/${S3_PATH}index.html" || true
     else
-        echo "❌ No index.html found inside playwright-report!"
+        echo "❌ No index.html or report.html found inside playwright-report!"
     fi
 
     ############################################
-    # Upload full folder for debugging
+    # Upload full folder
     ############################################
     aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" --recursive || true
 
