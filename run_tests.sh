@@ -53,23 +53,29 @@ fi
 
 echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
 
+############################################
+# ⭐ FIX: Ensure index.html ALWAYS exists
+############################################
 
-############################################
-# ⭐ FIX 1 — Ensure index.html always exists
-############################################
-# Playwright sometimes generates report.html
+# 1) If report.html exists → rename it
 if [ -f "playwright-report/report.html" ]; then
     echo "🔧 Found report.html → renaming to index.html"
     mv playwright-report/report.html playwright-report/index.html
 fi
 
-# If nested folder exists, pick correct index.html
+# 2) If index.html missing → find nested versions
 if [ ! -f "playwright-report/index.html" ]; then
     NESTED_INDEX=$(find playwright-report -name "index.html" | head -n 1 || true)
     if [ -n "$NESTED_INDEX" ]; then
-        echo "🔧 Found nested HTML → copying to root"
+        echo "🔧 Found nested index.html → copying to root"
         cp "$NESTED_INDEX" playwright-report/index.html
     fi
+fi
+
+# 3) If still missing → create dummy index.html so email never fails
+if [ ! -f "playwright-report/index.html" ]; then
+    echo "⚠️ No HTML report → creating placeholder index.html"
+    echo "<h2>No HTML report generated</h2>" > playwright-report/index.html
 fi
 
 ############################################
@@ -80,13 +86,10 @@ if [ ! -s "$JSON_OUTPUT" ]; then
     echo '{"suites":[]}' > "$JSON_OUTPUT"
 fi
 
-############################################
-# 4️⃣ Safe report message
-############################################
-echo "🎨 HTML report generated safely."
+echo "🎨 HTML report generation complete."
 
 ############################################
-# 5️⃣ Test Status
+# 4️⃣ Determine Test Status
 ############################################
 if [ $TEST_EXIT_CODE -ne 0 ]; then
     TEST_STATUS="Failed"
@@ -100,7 +103,7 @@ DURATION=$((END_TIME - START_TIME))
 export TEST_DURATION="${DURATION}s"
 
 ############################################
-# 6️⃣ Upload to S3
+# 5️⃣ Upload to S3
 ############################################
 if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
 
@@ -109,44 +112,38 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
 
     echo "☁️ Uploading report to S3 → s3://${S3_BUCKET}/${S3_PATH}"
 
-    # Upload HTML
-    if [ -f "playwright-report/index.html" ]; then
-        aws s3 cp "playwright-report/index.html" \
-           "s3://${S3_BUCKET}/${S3_PATH}index.html" || true
-    fi
+    aws s3 cp "playwright-report/index.html" \
+      "s3://${S3_BUCKET}/${S3_PATH}index.html" || true
 
-    # Upload full folder
     aws s3 cp playwright-report \
-       "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" --recursive || true
+      "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" --recursive || true
 
-    # Generate presigned URL
     if aws s3 ls "s3://${S3_BUCKET}/${S3_PATH}index.html" >/dev/null; then
         REPORT_URL=$(aws s3 presign \
-          "s3://${S3_BUCKET}/${S3_PATH}index.html" \
-          --expires-in 86400)
+          "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400)
         export REPORT_URL
     else
         REPORT_URL=""
     fi
+
 else
     export REPORT_URL=""
 fi
 
 ############################################
-# ⭐ FIX 2 — ADD DELAY BEFORE SENDING EMAIL
-# Fixes missing report for ALL suite
+# ⭐ FIX 2 — Delay ensures disk flush before email
 ############################################
-echo "⏳ Waiting 15 seconds to ensure files are fully written..."
-sleep 15
+echo "⏳ Waiting 10 seconds to ensure report files are flushed..."
+sleep 10
 
 ############################################
-# 7️⃣ Email report
+# 6️⃣ Send Email
 ############################################
 echo "📧 Sending report email..."
 node send_report.js || echo "⚠️ Email sending failed"
 
 ############################################
-# 8️⃣ Cleanup
+# 7️⃣ Cleanup
 ############################################
 pkill -f "playwright" || true
 
