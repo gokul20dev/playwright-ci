@@ -78,7 +78,7 @@ import path from "path";
 
             <tr>
               <td style="padding:4px 0;"><b>Duration:</b></td>
-              <td>${duration}</td>
+              <td>${duration}s</td>
             </tr>
 
             <tr>
