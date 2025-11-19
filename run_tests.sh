@@ -55,26 +55,33 @@ echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
 
 
 ############################################
-# ⭐ FINAL FIX — ALWAYS detect REAL HTML report
-# (This is all you needed to fix the ALL suite issue)
+# ⭐ FINAL FIX — RELIABLE HTML DETECTION
 ############################################
 
-# Find any index.html that is NOT the root one
-REAL_HTML=$(find playwright-report -type f -name "index.html" ! -path "playwright-report/index.html" | head -n 1)
-
-# If found, copy it to root
-if [ -n "$REAL_HTML" ]; then
-    echo "🔧 Using real Playwright HTML: $REAL_HTML"
-    cp "$REAL_HTML" playwright-report/index.html
+# 1️⃣ If suite folder exists: /playwright-report/Exammaker , /Examtaker
+if [ -d "playwright-report/${TEST_SUITE}" ]; then
+    if [ -f "playwright-report/${TEST_SUITE}/index.html" ]; then
+        echo "📄 Using suite-specific HTML → playwright-report/${TEST_SUITE}/index.html"
+        cp "playwright-report/${TEST_SUITE}/index.html" playwright-report/index.html
+    fi
 fi
 
-# Still missing? Try report.html
+# 2️⃣ If still missing, find ANY index.html inside all folders
+if [ ! -f "playwright-report/index.html" ]; then
+    REAL_HTML=$(find playwright-report -type f -name "index.html" | head -n 1 || true)
+    if [ -n "$REAL_HTML" ]; then
+        echo "📄 Auto-detected report at: $REAL_HTML"
+        cp "$REAL_HTML" playwright-report/index.html
+    fi
+fi
+
+# 3️⃣ If report.html exists at root
 if [ ! -f "playwright-report/index.html" ] && [ -f "playwright-report/report.html" ]; then
-    echo "🔧 Falling back to report.html"
+    echo "📄 Using fallback report.html"
     mv playwright-report/report.html playwright-report/index.html
 fi
 
-# Still missing? Create dummy placeholder
+# 4️⃣ If still nothing → create placeholder
 if [ ! -f "playwright-report/index.html" ]; then
     echo "⚠️ No HTML report → creating placeholder"
     echo "<h2>No HTML report generated</h2>" > playwright-report/index.html
