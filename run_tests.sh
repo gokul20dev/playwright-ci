@@ -25,7 +25,7 @@ else
 fi
 
 ############################################
-# RUN PLAYWRIGHT TESTS
+# RUN PLAYWRIGHT TESTS (TIMEOUT FIXED!!)
 ############################################
 TEST_SUITE=${TEST_SUITE:-all}
 TEST_EXIT_CODE=0
@@ -34,22 +34,24 @@ JSON_OUTPUT="playwright-report/results.json"
 echo "▶️ Running suite: ${TEST_SUITE}"
 
 if [ "$TEST_SUITE" = "all" ]; then
-    xvfb-run -a timeout 180s npx playwright test \
+
+    timeout 180s xvfb-run -a npx playwright test \
         --config=playwright.config.ts \
         --reporter=json,html \
         --output=playwright-report \
         | tee "$JSON_OUTPUT" || TEST_EXIT_CODE=$?
 
 else
-    # detect folder or .spec file
     if [ -d "tests/${TEST_SUITE}" ]; then
-        xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}" \
+
+        timeout 180s xvfb-run -a npx playwright test "tests/${TEST_SUITE}" \
             --config=playwright.config.ts \
             --reporter=json,html \
             --output=playwright-report \
             | tee "$JSON_OUTPUT" || TEST_EXIT_CODE=$?
+
     else
-        xvfb-run -a timeout 180s npx playwright test "tests/${TEST_SUITE}.spec.js" \
+        timeout 180s xvfb-run -a npx playwright test "tests/${TEST_SUITE}.spec.js" \
             --config=playwright.config.ts \
             --reporter=json,html \
             --output=playwright-report \
@@ -60,38 +62,33 @@ fi
 echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
 
 ###########################################################
-# ⭐ FIX BLOCK: RELIABLE HTML REPORT DETECTION (FINAL)
+# ⭐ RELIABLE HTML REPORT DETECTION (FINAL WORKING VERSION)
 ###########################################################
 echo "🔍 Scanning for REAL Playwright HTML report..."
 
 REAL_REPORT=""
 
-# 1) Normal expected location
+# 1) Normal root index.html
 if [ -f "playwright-report/index.html" ]; then
     REAL_REPORT=$(readlink -f "playwright-report/index.html")
 fi
 
-# 2) playwright-report/playwright-report/index.html
-if [ -z "$REAL_REPORT" ] && [ -f "playwright-report/playwright-report/index.html" ]; then
-    REAL_REPORT=$(readlink -f "playwright-report/playwright-report/index.html")
-fi
-
-# 3) playwright-report/html/index.html (new Playwright structure)
+# 2) New Playwright v1.50+ structure
 if [ -z "$REAL_REPORT" ] && [ -f "playwright-report/html/index.html" ]; then
     REAL_REPORT=$(readlink -f "playwright-report/html/index.html")
 fi
 
-# 4) ANY nested index.html
+# 3) Nested index.html anywhere
 if [ -z "$REAL_REPORT" ]; then
     REAL_REPORT=$(find playwright-report -type f -name "index.html" | head -n 1 || true)
 fi
 
-# 5) ANY report.html
+# 4) report.html fallback
 if [ -z "$REAL_REPORT" ]; then
     REAL_REPORT=$(find playwright-report -type f -name "report.html" | head -n 1 || true)
 fi
 
-# 6) Create fallback
+# 5) No HTML found → create fallback
 if [ -z "$REAL_REPORT" ]; then
     echo "⚠️ No actual report found → creating fallback"
     REAL_REPORT="playwright-report/index.html"
@@ -104,10 +101,10 @@ if [ -z "$REAL_REPORT" ]; then
 HTML
 fi
 
-echo "📄 USING REAL REPORT FILE:"
-echo "➡️  $REAL_REPORT"
+echo "📄 USING REPORT:"
+echo "$REAL_REPORT"
 
-# ALWAYS place final index.html at root for S3 + Email
+# Ensure S3 always gets index.html
 cp "$REAL_REPORT" "playwright-report/index.html"
 
 ############################################
