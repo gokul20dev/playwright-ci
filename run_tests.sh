@@ -53,19 +53,15 @@ fi
 
 echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
 
+
 ############################################
-# ⭐ FIX: Ensure report.html is usable
+# ⭐ FIX: Ensure index.html always exists
 ############################################
 if [ -f "playwright-report/report.html" ]; then
-    echo "🔧 Fixing Playwright output: Renaming report.html → index.html"
+    echo "🔧 Found report.html → renaming to index.html"
     mv playwright-report/report.html playwright-report/index.html
 fi
 
-############################################
-# DEBUG
-############################################
-echo "📁 DEBUG: Listing playwright-report folder"
-find playwright-report -maxdepth 5 -type f -print || true
 
 ############################################
 # 3️⃣ Ensure JSON exists
@@ -76,9 +72,9 @@ if [ ! -s "$JSON_OUTPUT" ]; then
 fi
 
 ############################################
-# 4️⃣ Report message
+# 4️⃣ DO NOT RUN show-report
 ############################################
-echo "🎨 HTML report generated."
+echo "🎨 HTML report generated safely."
 
 ############################################
 # 5️⃣ Test Status
@@ -95,7 +91,7 @@ DURATION=$((END_TIME - START_TIME))
 export TEST_DURATION="${DURATION}s"
 
 ############################################
-# 6️⃣ Upload to S3 (AUTO-DETECT HTML)
+# 6️⃣ Upload to S3
 ############################################
 if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
 
@@ -104,56 +100,36 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
 
     echo "☁️ Uploading report to S3 → s3://${S3_BUCKET}/${S3_PATH}"
 
-    ############################################
-    # ⭐ FIX: detect index.html OR report.html
-    ############################################
-    HTML_FILE=$(find playwright-report -regex '.*\(index\|report\)\.html$' -type f | head -n 1 || true)
-
-    if [ -n "$HTML_FILE" ]; then
-        echo "📤 Auto-detected HTML report: $HTML_FILE"
-        aws s3 cp "$HTML_FILE" "s3://${S3_BUCKET}/${S3_PATH}index.html" || true
-    else
-        echo "❌ No index.html or report.html found inside playwright-report!"
+    # Upload HTML file always named index.html
+    if [ -f "playwright-report/index.html" ]; then
+        aws s3 cp "playwright-report/index.html" "s3://${S3_BUCKET}/${S3_PATH}index.html" || true
     fi
 
-    ############################################
     # Upload full folder
-    ############################################
     aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" --recursive || true
 
-    ############################################
-    # Generate Presigned URL
-    ############################################
+    # Generate presigned URL
     if aws s3 ls "s3://${S3_BUCKET}/${S3_PATH}index.html" >/dev/null; then
-        REPORT_URL=$(aws s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400)
+        REPORT_URL=$(aws.s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400)
         export REPORT_URL
-        echo "🔗 Report URL: $REPORT_URL"
     else
         REPORT_URL=""
-        echo "❌ index.html missing in S3 → Button will not appear"
     fi
-
 else
     export REPORT_URL=""
-    echo "⚠️ S3 upload skipped"
 fi
 
 ############################################
 # 7️⃣ Email report
 ############################################
-echo "📧 Sending report email..."
 node send_report.js || echo "⚠️ Email sending failed"
 
 ############################################
 # 8️⃣ Cleanup
 ############################################
-echo "🧹 Killing Playwright background processes..."
 pkill -f "playwright" || true
 
-echo "🛑 Auto-stopping this container..."
 CONTAINER_ID=$(basename "$(cat /proc/1/cpuset)")
-
 curl --unix-socket /var/run/docker.sock -X POST "http:/v1.41/containers/${CONTAINER_ID}/stop" || true
 
-echo "✅ Test execution finished."
 exit 0
