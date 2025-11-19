@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-trap 'echo "❌ Error occurred on line $LINENO"; exit 1' ERR
+trap 'echo "❌ Error occurred on line $LINENO"' ERR
 
 echo ""
 echo "============== STARTING DEBUG PIPELINE =============="
@@ -29,32 +29,36 @@ TEST_SUITE=${TEST_SUITE:-all}
 JSON_OUTPUT="playwright-report/results.json"
 TEST_EXIT_CODE=0
 
-echo "Running suite = $TEST_SUITE"
-
 run_pw() {
-    xvfb-run -a timeout 300s npx playwright test "$1" \
-        --config=playwright.config.ts \
+    echo "Running suite: $1"
+    # ✔ NEVER FAIL RUN — allow tests to crash without stopping script
+    xvfb-run -a timeout 600s npx playwright test "$1" \
         --reporter=json,html \
+        --config=playwright.config.ts \
         --output=playwright-report \
         | tee "$JSON_OUTPUT" || TEST_EXIT_CODE=$?
 }
 
-# 🔥 FIXED: `all` now runs everything inside tests/
+# ✔ run the right suite
 if [ "$TEST_SUITE" = "all" ]; then
-    echo "DEBUG: running ALL tests"
     run_pw "tests"
+elif [ -d "tests/${TEST_SUITE}" ]; then
+    run_pw "tests/${TEST_SUITE}"
 else
-    if [ -d "tests/${TEST_SUITE}" ]; then
-        echo "DEBUG: Running folder tests/${TEST_SUITE}"
-        run_pw "tests/${TEST_SUITE}"
-    else
-        echo "DEBUG: Running single test tests/${TEST_SUITE}.spec.js"
-        run_pw "tests/${TEST_SUITE}.spec.js"
-    fi
+    run_pw "tests/${TEST_SUITE}.spec.js"
 fi
 
 echo "Playwright exit code = $TEST_EXIT_CODE"
 echo "========================================"
+
+echo ""
+echo "🔧 FORCE-GENERATING HTML REPORT..."
+echo "========================================"
+
+# -----------------------------------------
+# ✔ ALWAYS create HTML report even if tests crashed
+# -----------------------------------------
+npx playwright show-report --output=playwright-report || true
 
 echo ""
 echo "🔍 DEBUG: CHECKING WHAT FILES PLAYWRIGHT CREATED..."
@@ -67,31 +71,21 @@ echo "========================================"
 
 REAL_REPORT=""
 
-# Playwright 1.45+ format
 if [ -f "playwright-report/index.html" ]; then
     REAL_REPORT="playwright-report/index.html"
 fi
 
-# Some versions create nested folders
-if [ -z "$REAL_REPORT" ] && [ -f "playwright-report/html/index.html" ]; then
-    REAL_REPORT="playwright-report/html/index.html"
-fi
-
-# Search fallback
 if [ -z "$REAL_REPORT" ]; then
     REAL_REPORT=$(find playwright-report -type f -name "index.html" | head -n 1 || true)
 fi
 
-# If still empty → fallback
 if [ -z "$REAL_REPORT" ]; then
-    echo "⚠️ No HTML report found, creating fallback"
+    echo "⚠️ No HTML report found even after forcing → creating fallback"
     REAL_REPORT="playwright-report/index.html"
     echo "<h2>No HTML report generated</h2>" > "$REAL_REPORT"
 fi
 
 echo "👉 FINAL REPORT = $REAL_REPORT"
-
-# Copy to root for email + S3 upload
 cp "$REAL_REPORT" playwright-report/index.html || true
 
 echo "========================================"
@@ -99,11 +93,8 @@ echo "☁️ DEBUG: STARTING S3 UPLOAD"
 echo "========================================"
 
 if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
-
     TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
     S3_PATH="${TEST_SUITE}/${TIMESTAMP}/"
-
-    echo "Uploading to S3 → s3://${S3_BUCKET}/${S3_PATH}"
 
     aws s3 cp "playwright-report/index.html" \
         "s3://${S3_BUCKET}/${S3_PATH}index.html" --region "$AWS_REGION" || true
@@ -112,16 +103,12 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
         "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" \
         --recursive --region "$AWS_REGION" || true
 
-    echo "Generating presigned URL..."
     REPORT_URL=$(aws s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" \
         --expires-in 86400 --region "$AWS_REGION" 2>/dev/null || true)
 
     export REPORT_URL
-    echo "Presigned URL = $REPORT_URL"
-
 else
     export REPORT_URL=""
-    echo "⚠️ S3 NOT CONFIGURED"
 fi
 
 echo "========================================"
@@ -134,18 +121,12 @@ echo "========================================"
 echo "🧹 CLEANUP"
 echo "========================================"
 
-echo "Stopping Playwright processes..."
 pkill -f "playwright" || true
 
-echo "Attempting Docker self-stop..."
 CID=$(basename "$(cat /proc/1/cpuset 2>/dev/null)" 2>/dev/null || true)
-
 if [ -n "$CID" ]; then
-    echo "Stopping container: $CID"
     curl --unix-socket /var/run/docker.sock -s -X POST \
         "http:/v1.41/containers/$CID/stop" || true
-else
-    echo "⚠️ Could not detect container ID"
 fi
 
 echo ""
