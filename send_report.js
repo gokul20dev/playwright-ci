@@ -2,68 +2,54 @@ import nodemailer from "nodemailer";
 import fs from "fs";
 import path from "path";
 
-// Gmail credentials
 const user = process.env.GMAIL_USER;
 const pass = process.env.GMAIL_PASS;
 
-// Suite + status
 const suite = process.env.TEST_SUITE || "all";
 const testStatus = process.env.TEST_STATUS || "Failed";
-
-// S3 / report URL
 const reportUrl = process.env.REPORT_URL || null;
 
-// Other metadata
 const pipelineName = process.env.PIPELINE_NAME || "QA Automation Pipeline";
 const duration = process.env.TEST_DURATION || "-";
 
-// ------------------------------------------------------------------
-// ⭐ AUTO-DETECT HTML REPORT FILE (index.html OR report.html)
-// ------------------------------------------------------------------
-let reportPath = null;
+// AUTO-DETECT index.html OR report.html
+function findHtmlReport() {
+  function search(dir) {
+    const list = fs.readdirSync(dir, { withFileTypes: true });
 
-function findReportFile(startPath) {
-  const files = fs.readdirSync(startPath, { withFileTypes: true });
+    for (const file of list) {
+      const full = path.join(dir, file.name);
 
-  for (const file of files) {
-    const fullPath = path.join(startPath, file.name);
+      if (file.isDirectory()) {
+        const found = search(full);
+        if (found) return found;
+      }
 
-    if (file.isDirectory()) {
-      const result = findReportFile(fullPath);
-      if (result) return result;
+      if (file.isFile() && (file.name === "index.html" || file.name === "report.html")) {
+        return full;
+      }
     }
-
-    if (
-      file.isFile() &&
-      (file.name === "index.html" || file.name === "report.html")
-    ) {
-      return fullPath;
-    }
+    return null;
   }
-  return null;
+
+  return search("playwright-report");
 }
 
-reportPath = findReportFile("playwright-report");
+const reportPath = findHtmlReport();
+const reportExists = !!reportPath;
 
-let reportExists = false;
-if (reportPath) {
-  reportExists = true;
-  console.log("✅ Auto-detected report:", reportPath);
+if (reportExists) {
+  console.log("✅ Found HTML report:", reportPath);
 } else {
-  console.warn("⚠️ No index.html or report.html found in playwright-report!");
+  console.warn("⚠️ No HTML report found inside playwright-report");
 }
 
-// ------------------------------------------------------------------
-// ✉️ SMTP Config
-// ------------------------------------------------------------------
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: { user, pass },
 });
 
-// ------------------------------------------------------------------
-// ✨ HTML Email Body
-// ------------------------------------------------------------------
+// EMAIL BODY
 let emailBody = `
 <div style="font-family:Arial; background:#eef3fc; padding:14px;">
   <div style="background:#fff; padding:14px; border-radius:6px; border:1px solid #c5d3f2; max-width:550px;">
@@ -95,17 +81,10 @@ let emailBody = `
       The detailed Playwright HTML report is attached below.
     </p>
 
-    <p style="font-size:11px; color:#777; margin-top:20px;">
-      Sent automatically by <b>Playwright CI</b>.
-    </p>
-
   </div>
 </div>
 `;
 
-// ------------------------------------------------------------------
-// 📮 Email Options
-// ------------------------------------------------------------------
 const mailOptions = {
   from: `"Playwright CI" <${user}>`,
   to: ["gopalakrishnan93843@gmail.com", "gokulcoal78752@gmail.com"],
@@ -115,7 +94,7 @@ const mailOptions = {
   html: emailBody,
 };
 
-if (reportExists && reportPath) {
+if (reportExists) {
   mailOptions.attachments = [
     {
       filename: "playwright-report.html",
@@ -125,9 +104,6 @@ if (reportExists && reportPath) {
   ];
 }
 
-// ------------------------------------------------------------------
-// 🚀 Send Email
-// ------------------------------------------------------------------
 try {
   await transporter.sendMail(mailOptions);
   console.log("📨 Email sent successfully!");
