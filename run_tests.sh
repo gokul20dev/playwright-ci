@@ -8,6 +8,7 @@ echo ""
 
 cd /workspace || exit 1
 
+# >>> added - start time
 START_TIME=$(date +%s)
 
 echo "🧹 Cleaning old report..."
@@ -31,7 +32,6 @@ TEST_EXIT_CODE=0
 
 run_pw() {
     echo "Running suite: $1"
-    # ✔ NEVER FAIL RUN — allow tests to crash without stopping script
     xvfb-run -a timeout 600s npx playwright test "$1" \
         --reporter=json,html \
         --config=playwright.config.ts \
@@ -39,7 +39,6 @@ run_pw() {
         | tee "$JSON_OUTPUT" || TEST_EXIT_CODE=$?
 }
 
-# ✔ run the right suite
 if [ "$TEST_SUITE" = "all" ]; then
     run_pw "tests"
 elif [ -d "tests/${TEST_SUITE}" ]; then
@@ -55,9 +54,6 @@ echo ""
 echo "🔧 FORCE-GENERATING HTML REPORT..."
 echo "========================================"
 
-# -----------------------------------------
-# ✔ ALWAYS create HTML report even if tests crashed
-# -----------------------------------------
 npx playwright show-report --output=playwright-report || true
 
 echo ""
@@ -110,6 +106,11 @@ if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
 else
     export REPORT_URL=""
 fi
+
+# >>> added - end time + duration calculation
+END_TIME=$(date +%s)
+TEST_DURATION=$(( END_TIME - START_TIME ))
+export TEST_DURATION
 
 echo "========================================"
 echo "📧 DEBUG: SENDING EMAIL..."
