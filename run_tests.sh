@@ -55,37 +55,32 @@ echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
 
 
 ############################################
-# ⭐ FINAL FIX — RELIABLE HTML DETECTION
+# ⭐ NEW FINAL FIX — ALWAYS FIND THE REAL HTML
 ############################################
 
-# 1️⃣ If suite-specific folder exists: /playwright-report/Exammaker , /Examtaker
-if [ -d "playwright-report/${TEST_SUITE}" ]; then
-    if [ -f "playwright-report/${TEST_SUITE}/index.html" ]; then
-        echo "📄 Using suite-specific HTML → playwright-report/${TEST_SUITE}/index.html"
-        cp "playwright-report/${TEST_SUITE}/index.html" playwright-report/index.html
+echo "🔍 Searching for real Playwright HTML report..."
+
+# 1️⃣ Collect ALL index.html files EXCEPT placeholder
+ALL_HTML_FILES=($(find playwright-report -type f -name "index.html"))
+
+REAL_HTML_FILE=""
+
+# 2️⃣ Pick the LARGEST file (real report is always biggest)
+LARGEST_SIZE=0
+for FILE in "${ALL_HTML_FILES[@]}"; do
+    SIZE=$(stat -c%s "$FILE")
+    if [ "$SIZE" -gt "$LARGEST_SIZE" ]; then
+        LARGEST_SIZE=$SIZE
+        REAL_HTML_FILE="$FILE"
     fi
-fi
+done
 
-# 2️⃣ If still missing → find the NEWEST index.html inside all folders
-if [ ! -f "playwright-report/index.html" ]; then
-    REAL_HTML=$(find playwright-report -type f -name "index.html" ! -path "playwright-report/index.html" -printf "%T@ %p\n" \
-        | sort -nr | head -n 1 | awk '{print $2}')
-
-    if [ -n "$REAL_HTML" ]; then
-        echo "📄 Latest HTML auto-detected → $REAL_HTML"
-        cp "$REAL_HTML" playwright-report/index.html
-    fi
-fi
-
-# 3️⃣ If report.html exists at root
-if [ ! -f "playwright-report/index.html" ] && [ -f "playwright-report/report.html" ]; then
-    echo "📄 Using fallback report.html"
-    mv playwright-report/report.html playwright-report/index.html
-fi
-
-# 4️⃣ If still nothing → create placeholder
-if [ ! -f "playwright-report/index.html" ]; then
-    echo "⚠️ No HTML report → creating placeholder"
+# 3️⃣ If found → copy to root
+if [ -n "$REAL_HTML_FILE" ]; then
+    echo "📄 Real HTML found: $REAL_HTML_FILE (size: $LARGEST_SIZE bytes)"
+    cp "$REAL_HTML_FILE" playwright-report/index.html
+else
+    echo "⚠️ No index.html found → creating placeholder"
     echo "<h2>No HTML report generated</h2>" > playwright-report/index.html
 fi
 
@@ -113,6 +108,7 @@ export TEST_STATUS
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 export TEST_DURATION="${DURATION}s"
+
 
 ############################################
 # 5️⃣ Upload to S3
@@ -142,20 +138,21 @@ else
     export REPORT_URL=""
 fi
 
+
 ############################################
-# ⭐ FIX 2 — Delay ensures disk flush before email
+# 6️⃣ WAIT BEFORE SENDING EMAIL
 ############################################
 echo "⏳ Waiting 10 seconds to ensure report files are flushed..."
 sleep 10
 
 ############################################
-# 6️⃣ Send Email
+# 7️⃣ Send Email
 ############################################
 echo "📧 Sending report email..."
 node send_report.js || echo "⚠️ Email sending failed"
 
 ############################################
-# 7️⃣ Cleanup
+# 8️⃣ Cleanup
 ############################################
 pkill -f "playwright" || true
 
