@@ -39,9 +39,10 @@ run_pw() {
         | tee "$JSON_OUTPUT" || TEST_EXIT_CODE=$?
 }
 
+# 🔥 FIXED: `all` now runs everything inside tests/
 if [ "$TEST_SUITE" = "all" ]; then
     echo "DEBUG: running ALL tests"
-    run_pw ""
+    run_pw "tests"
 else
     if [ -d "tests/${TEST_SUITE}" ]; then
         echo "DEBUG: Running folder tests/${TEST_SUITE}"
@@ -76,11 +77,12 @@ if [ -z "$REAL_REPORT" ] && [ -f "playwright-report/html/index.html" ]; then
     REAL_REPORT="playwright-report/html/index.html"
 fi
 
-# Search anywhere fallback
+# Search fallback
 if [ -z "$REAL_REPORT" ]; then
     REAL_REPORT=$(find playwright-report -type f -name "index.html" | head -n 1 || true)
 fi
 
+# If still empty → fallback
 if [ -z "$REAL_REPORT" ]; then
     echo "⚠️ No HTML report found, creating fallback"
     REAL_REPORT="playwright-report/index.html"
@@ -89,7 +91,7 @@ fi
 
 echo "👉 FINAL REPORT = $REAL_REPORT"
 
-# Copy to root for email + S3
+# Copy to root for email + S3 upload
 cp "$REAL_REPORT" playwright-report/index.html || true
 
 echo "========================================"
