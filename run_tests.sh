@@ -1,168 +1,193 @@
 #!/bin/bash
 set -euo pipefail
-trap 'echo "❌ Error occurred on line $LINENO"; exit 1"' ERR
+trap 'echo "❌ Error occurred on line $LINENO"; exit 1' ERR
 
-cd /workspace || exit 1
-echo "▶️ Starting Playwright CI Test Runner..."
+cd /workspace || { echo "Workspace not found"; exit 1; }
+echo "▶️ [$(date +"%T")] Starting Playwright CI Test Runner..."
 echo "-----------------------------------------------"
 
 START_TIME=$(date +%s)
 
-############################################
-# CLEAN OLD REPORT
-############################################
+# -------------------------------------------
+# clean old report
+# -------------------------------------------
+echo "🧹 Cleaning old Playwright report..."
 rm -rf playwright-report
 mkdir -p playwright-report
 
-############################################
-# INSTALL DEPENDENCIES
-############################################
+# -------------------------------------------
+# install dependencies
+# -------------------------------------------
 echo "📦 Installing dependencies..."
 if [ -f "package-lock.json" ]; then
-    npm ci --quiet || npm install --legacy-peer-deps --quiet
+  npm ci --quiet || npm install --legacy-peer-deps --quiet
 else
-    npm install --quiet
+  npm install --quiet
 fi
+echo "✅ Dependencies installed."
 
-############################################
-# RUN PLAYWRIGHT TESTS (TIMEOUT FIXED!!)
-############################################
+# -------------------------------------------
+# run playwright tests (capture logs + exit code)
+# -------------------------------------------
 TEST_SUITE=${TEST_SUITE:-all}
-TEST_EXIT_CODE=0
 JSON_OUTPUT="playwright-report/results.json"
+PLAY_LOG="playwright.log"
+TEST_EXIT_CODE=0
 
-echo "▶️ Running suite: ${TEST_SUITE}"
+echo "▶️ Running Playwright tests for suite: ${TEST_SUITE}"
+# Allow Playwright command to fail without exiting script; we'll capture exit code.
+set +e
 
 if [ "$TEST_SUITE" = "all" ]; then
-
-    timeout 180s xvfb-run -a npx playwright test \
-        --config=playwright.config.ts \
-        --reporter=json,html \
-        --output=playwright-report \
-        | tee "$JSON_OUTPUT" || TEST_EXIT_CODE=$?
-
+  # timeout must wrap xvfb-run so it actually kills the test after timeout
+  timeout 180s xvfb-run -a npx playwright test \
+    --config=playwright.config.ts \
+    --reporter=json,html \
+    --output=playwright-report \
+    2>&1 | tee "$PLAY_LOG"
+  TEST_EXIT_CODE=${PIPESTATUS[0]:-0}
 else
-    if [ -d "tests/${TEST_SUITE}" ]; then
-
-        timeout 180s xvfb-run -a npx playwright test "tests/${TEST_SUITE}" \
-            --config=playwright.config.ts \
-            --reporter=json,html \
-            --output=playwright-report \
-            | tee "$JSON_OUTPUT" || TEST_EXIT_CODE=$?
-
-    else
-        timeout 180s xvfb-run -a npx playwright test "tests/${TEST_SUITE}.spec.js" \
-            --config=playwright.config.ts \
-            --reporter=json,html \
-            --output=playwright-report \
-            | tee "$JSON_OUTPUT" || TEST_EXIT_CODE=$?
-    fi
+  # run either tests/<suite> folder or tests/<suite>.spec.js file
+  if [ -d "tests/${TEST_SUITE}" ]; then
+    timeout 180s xvfb-run -a npx playwright test "tests/${TEST_SUITE}" \
+      --config=playwright.config.ts \
+      --reporter=json,html \
+      --output=playwright-report \
+      2>&1 | tee "$PLAY_LOG"
+    TEST_EXIT_CODE=${PIPESTATUS[0]:-0}
+  else
+    timeout 180s xvfb-run -a npx playwright test "tests/${TEST_SUITE}.spec.js" \
+      --config=playwright.config.ts \
+      --reporter=json,html \
+      --output=playwright-report \
+      2>&1 | tee "$PLAY_LOG"
+    TEST_EXIT_CODE=${PIPESTATUS[0]:-0}
+  fi
 fi
 
+set -e
 echo "📌 Playwright Exit Code = $TEST_EXIT_CODE"
+echo "📄 Last 40 lines of Playwright log:"
+tail -n 40 "$PLAY_LOG" || true
 
-###########################################################
-# ⭐ RELIABLE HTML REPORT DETECTION (FINAL WORKING VERSION)
-###########################################################
-echo "🔍 Scanning for REAL Playwright HTML report..."
-
+# -------------------------------------------
+# Reliable HTML detection & place root index.html
+# -------------------------------------------
+echo "🔍 Scanning for real Playwright HTML report..."
+REPORT_ROOT="playwright-report/index.html"
 REAL_REPORT=""
 
-# 1) Normal root index.html
-if [ -f "playwright-report/index.html" ]; then
-    REAL_REPORT=$(readlink -f "playwright-report/index.html")
+# prefer suite-specific index/report paths
+if [ -d "playwright-report/${TEST_SUITE}" ]; then
+  if [ -f "playwright-report/${TEST_SUITE}/index.html" ]; then
+    REAL_REPORT=$(readlink -f "playwright-report/${TEST_SUITE}/index.html")
+  elif [ -f "playwright-report/${TEST_SUITE}/report.html" ]; then
+    REAL_REPORT=$(readlink -f "playwright-report/${TEST_SUITE}/report.html")
+  fi
 fi
 
-# 2) New Playwright v1.50+ structure
+# common places
+if [ -z "$REAL_REPORT" ] && [ -f "playwright-report/index.html" ]; then
+  REAL_REPORT=$(readlink -f "playwright-report/index.html")
+fi
+
 if [ -z "$REAL_REPORT" ] && [ -f "playwright-report/html/index.html" ]; then
-    REAL_REPORT=$(readlink -f "playwright-report/html/index.html")
+  REAL_REPORT=$(readlink -f "playwright-report/html/index.html")
 fi
 
-# 3) Nested index.html anywhere
 if [ -z "$REAL_REPORT" ]; then
-    REAL_REPORT=$(find playwright-report -type f -name "index.html" | head -n 1 || true)
+  REAL_REPORT=$(find playwright-report -type f -name "index.html" | head -n 1 || true)
 fi
 
-# 4) report.html fallback
 if [ -z "$REAL_REPORT" ]; then
-    REAL_REPORT=$(find playwright-report -type f -name "report.html" | head -n 1 || true)
+  REAL_REPORT=$(find playwright-report -type f -name "report.html" | head -n 1 || true)
 fi
 
-# 5) No HTML found → create fallback
+# fallback placeholder if still nothing
 if [ -z "$REAL_REPORT" ]; then
-    echo "⚠️ No actual report found → creating fallback"
-    REAL_REPORT="playwright-report/index.html"
-    cat > "$REAL_REPORT" <<'HTML'
+  echo "⚠️ No actual HTML report found → creating fallback placeholder"
+  cat > "$REPORT_ROOT" <<'HTML'
 <!doctype html>
-<html>
-  <head><meta charset="utf-8"><title>No HTML Report</title></head>
-  <body><h2>No HTML report generated</h2><p>Playwright did not generate an HTML report.</p></body>
-</html>
+<html><head><meta charset="utf-8"><title>No HTML report generated</title></head>
+<body><h2>No HTML report generated</h2><pre>Playwright did not produce an HTML report for this run. See playwright.log for details.</pre></body></html>
 HTML
+else
+  echo "📄 Using real report: $REAL_REPORT"
+  # copy the real report to root index.html so email + S3 always use a root index.html
+  cp "$REAL_REPORT" "$REPORT_ROOT"
 fi
 
-echo "📄 USING REPORT:"
-echo "$REAL_REPORT"
-
-# Ensure S3 always gets index.html
-cp "$REAL_REPORT" "playwright-report/index.html"
-
-############################################
-# ENSURE JSON EXISTS
-############################################
+# -------------------------------------------
+# Ensure JSON exists
+# -------------------------------------------
 if [ ! -s "$JSON_OUTPUT" ]; then
-    echo '{"suites":[]}' > "$JSON_OUTPUT"
+  echo "⚠️ JSON missing → creating fallback JSON"
+  echo '{"suites":[]}' > "$JSON_OUTPUT"
 fi
 
-############################################
-# TEST STATUS
-############################################
-TEST_STATUS="Passed"
-[ $TEST_EXIT_CODE -ne 0 ] && TEST_STATUS="Failed"
+# -------------------------------------------
+# Determine test status and duration
+# -------------------------------------------
+if [ "$TEST_EXIT_CODE" -ne 0 ]; then
+  TEST_STATUS="Failed"
+else
+  TEST_STATUS="Passed"
+fi
 export TEST_STATUS
 
 END_TIME=$(date +%s)
-export TEST_DURATION="$((END_TIME - START_TIME))s"
+DURATION=$((END_TIME - START_TIME))
+export TEST_DURATION="${DURATION}s"
+echo "⏱ Duration: $TEST_DURATION  Status: $TEST_STATUS"
 
-############################################
-# UPLOAD TO S3
-############################################
+# -------------------------------------------
+# Upload to S3 (if configured)
+# -------------------------------------------
+export REPORT_URL=""
 if [ -n "${S3_BUCKET:-}" ] && [ -n "${AWS_REGION:-}" ]; then
+  TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+  S3_PATH="${TEST_SUITE}/${TIMESTAMP}/"
+  echo "☁️ Uploading report to S3 → s3://${S3_BUCKET}/${S3_PATH}"
 
-    TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
-    S3_PATH="${TEST_SUITE}/${TIMESTAMP}/"
+  # upload index.html root first so presign exists
+  aws s3 cp "$REPORT_ROOT" "s3://${S3_BUCKET}/${S3_PATH}index.html" --region "${AWS_REGION}" || true
+  # upload full folder so assets (css/js) remain (if any)
+  aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" --recursive --region "${AWS_REGION}" || true
 
-    echo "☁️ Uploading to s3://${S3_BUCKET}/${S3_PATH}"
-
-    aws s3 cp "playwright-report/index.html" "s3://${S3_BUCKET}/${S3_PATH}index.html" --region "$AWS_REGION" || true
-    aws s3 cp playwright-report "s3://${S3_BUCKET}/${S3_PATH}playwright-report/" --recursive --region "$AWS_REGION" || true
-
-    if aws s3 ls "s3://${S3_BUCKET}/${S3_PATH}index.html" >/dev/null 2>&1; then
-        REPORT_URL=$(aws s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400 --region "$AWS_REGION")
-        export REPORT_URL
-        echo "🔗 URL: $REPORT_URL"
-    else
-        export REPORT_URL=""
-        echo "❌ Could not generate presigned URL"
-    fi
+  if aws s3 ls "s3://${S3_BUCKET}/${S3_PATH}index.html" --region "${AWS_REGION}" >/dev/null 2>&1; then
+    REPORT_URL=$(aws s3 presign "s3://${S3_BUCKET}/${S3_PATH}index.html" --expires-in 86400 --region "${AWS_REGION}" 2>/dev/null || true)
+    export REPORT_URL
+    echo "🔗 Report URL: $REPORT_URL"
+  else
+    echo "❌ index.html not found in S3 after upload"
+  fi
 else
-    export REPORT_URL=""
-    echo "⚠️ S3 Upload disabled"
+  echo "⚠️ S3 upload skipped (S3_BUCKET or AWS_REGION not set)"
 fi
 
-############################################
-# EMAIL REPORT
-############################################
-echo "📧 Sending email..."
-node send_report.js || echo "⚠️ Email sending failed"
+# small wait so S3 is consistent + files flushed
+echo "⏳ Waiting 5 seconds for flush/consistency..."
+sleep 5
 
-############################################
-# CLEANUP
-############################################
+# -------------------------------------------
+# Send Email (calls your send_report.js)
+# -------------------------------------------
+echo "📧 Sending report email (send_report.js uses REPORT_URL, TEST_STATUS, TEST_DURATION)..."
+# Node file should use process.env.* to pick up REPORT_URL etc.
+node send_report.js || echo "⚠️ send_report.js failed (email not sent)"
+
+# -------------------------------------------
+# Cleanup: kill playwright processes then stop container (best-effort)
+# -------------------------------------------
 pkill -f "playwright" || true
 
-CID=$(basename "$(cat /proc/1/cpuset)" 2>/dev/null || true)
-[ -n "$CID" ] && curl --unix-socket /var/run/docker.sock -s -X POST "http:/v1.41/containers/$CID/stop" || true
+if [ -f /proc/1/cpuset ]; then
+  CID=$(basename "$(cat /proc/1/cpuset)" 2>/dev/null || true)
+  if [ -n "$CID" ]; then
+    echo "🛑 Stopping container ${CID} via docker socket (best-effort)"
+    curl --unix-socket /var/run/docker.sock -s -X POST "http:/v1.41/containers/${CID}/stop" || true
+  fi
+fi
 
-echo "✅ Finished suite=$TEST_SUITE | status=$TEST_STATUS"
-exit 0
+echo "✅ Finished. Suite=${TEST_SUITE} Status=${TEST_STATUS} Duration=${TEST_DURATION}"
+exit "$TEST_EXIT_CODE"
