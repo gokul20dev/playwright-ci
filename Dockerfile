@@ -1,49 +1,49 @@
-# Base image with Playwright + Node
-FROM mcr.microsoft.com/playwright:v1.56.1-jammy
-
-# ---------- WORKDIR ----------
-WORKDIR /workspace
-
 # ---------- COPY PACKAGE FILES (cache) ----------
 COPY package*.json ./
 
-# ---------- Install dependencies ----------
+# ---------- Install NPM dependencies ----------
 RUN npm ci --quiet || npm install --legacy-peer-deps --quiet
 
-# ---------- Copy everything (initial version) ----------
+# ---------- Copy rest of application ----------
 COPY . .
 
-# --- FIX: Wrapper so Playwright loads TS config correctly ----
+# --- FIX: Make Playwright use TS config correctly ----
 RUN echo "module.exports = require('./playwright.config.ts').default;" > playwright.config.js
 
-# ---------- Install Playwright browsers + OS deps ----------
+# ---------- Install ALL system + Playwright deps correctly ----------
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+        xvfb \
+        xauth \
+        x11-apps \
+        libxrandr2 \
+        libasound2 \
+        libatk1.0-0 \
+        libatk-bridge2.0-0 \
+        libcups2 \
+        libnss3 \
+        libxss1 \
+        libxshmfence1 \
+        libsmbclient \
+        unzip \
+        curl \
+        jq \
+        dos2unix \
+    && apt-get clean
+
+# ---------- Install Playwright browsers WITH system deps ----------
 RUN npx playwright install --with-deps
 
-# ---------- Install additional system deps ----------
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends unzip curl xvfb dos2unix jq && \
-    curl -s https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip && \
+# ---------- Install AWS CLI ----------
+RUN curl -s https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip && \
     unzip -q awscliv2.zip && ./aws/install && \
-    rm -rf awscliv2.zip aws/ /var/lib/apt/lists/*
+    rm -rf awscliv2.zip aws/
 
-# ---------- Fix CRLF from Windows ----------
+# ---------- Convert CRLF to LF ----------
 RUN find . -type f \( -name "*.sh" -o -name "*.js" -o -name "*.ts" \) -exec dos2unix {} + || true
 
-# ---------- Make script executable (safe default) ----------
+# ---------- Ensure run_tests.sh is executable ----------
 RUN chmod +x /workspace/run_tests.sh || true
 
-# ------------------------------------------------------------
-# IMPORTANT CHANGE FOR OPTION B:
-# Container MUST NOT auto-run tests.
-# It must stay alive so Jenkins can:
-# 1) docker create
-# 2) docker cp workspace/
-# 3) docker exec chmod
-# 4) docker exec /workspace/run_tests.sh
-#
-# So we DISABLE tests in CMD.
-# ------------------------------------------------------------
-
-# Keep container alive until Jenkins starts tests
+# ---------- Keep container alive ----------
 ENTRYPOINT ["tail", "-f", "/dev/null"]
-
